@@ -314,7 +314,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.6: TanStack Query + Zustand + Framer Motion providers
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T1.4
 - **Description**:
