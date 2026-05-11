@@ -35,11 +35,8 @@
 
   /* Shadows — sm list, md card, lg elevated CTA / modal */
   --shadow-sm: 0 2px 8px rgba(201, 168, 232, 0.12);
-  --shadow-md:
-    0 4px 16px rgba(255, 158, 197, 0.18), 0 1px 4px rgba(201, 168, 232, 0.12);
-  --shadow-lg:
-    0 12px 32px rgba(255, 158, 197, 0.28),
-    0 4px 12px rgba(201, 168, 232, 0.18);
+  --shadow-md: 0 4px 16px rgba(255, 158, 197, 0.18), 0 1px 4px rgba(201, 168, 232, 0.12);
+  --shadow-lg: 0 12px 32px rgba(255, 158, 197, 0.28), 0 4px 12px rgba(201, 168, 232, 0.18);
 
   /* Type scale — DM Sans Latin + Noto Sans Georgian (font wiring in T1.7) */
   --text-display: 30px;
@@ -74,21 +71,9 @@
   --gradient-water: linear-gradient(180deg, #bce3ff 0%, #7cc7ff 100%);
   --gradient-tab-active: linear-gradient(135deg, #ffd66b 0%, #ff9ec5 100%);
 
-  --blob-yellow: radial-gradient(
-    circle,
-    rgba(255, 214, 107, 0.35) 0%,
-    transparent 65%
-  );
-  --blob-mint: radial-gradient(
-    circle,
-    rgba(125, 223, 168, 0.32) 0%,
-    transparent 65%
-  );
-  --blob-lilac: radial-gradient(
-    circle,
-    rgba(201, 168, 232, 0.32) 0%,
-    transparent 65%
-  );
+  --blob-yellow: radial-gradient(circle, rgba(255, 214, 107, 0.35) 0%, transparent 65%);
+  --blob-mint: radial-gradient(circle, rgba(125, 223, 168, 0.32) 0%, transparent 65%);
+  --blob-lilac: radial-gradient(circle, rgba(201, 168, 232, 0.32) 0%, transparent 65%);
 
   /* Motion — spring values consumed by Framer Motion (T1.6). */
   --motion-fade-duration: 220ms;
@@ -99,6 +84,10 @@
 
 body {
   color: var(--color-ink);
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
 }
 
 /* prefers-reduced-motion — neutralises CSS-driven animation/transition.
