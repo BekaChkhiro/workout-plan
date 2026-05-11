@@ -20,7 +20,7 @@ const notoSansGeorgian = Noto_Sans_Georgian({
 
 export const metadata: Metadata = {
   title: "Fit Plan",
-  description: "Personal 4-week nutrition + workout PWA",
+  description: "4-კვირიანი კვების და ვარჯიშის გეგმა",
 };
 
 export const viewport: Viewport = {
@@ -42,10 +42,10 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="ka"
       className={`${dmSans.variable} ${notoSansGeorgian.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">
+      <body className="from-bg-lilac to-bg-pink text-ink min-h-screen bg-linear-to-b font-sans">
         <Providers>{children}</Providers>
       </body>
     </html>
