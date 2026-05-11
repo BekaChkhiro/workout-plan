@@ -3,6 +3,13 @@
 /* Style C — Soft Pastel Feminine design tokens.
    Locked in design-prompts/_TOKENS.md and week-plan/screens/style-c.jsx. */
 @theme {
+  /* Fonts — DM Sans (Latin) + Noto Sans Georgian (Georgian).
+     DM Sans is listed first so Latin glyphs render in it; Georgian
+     code points fall through to Noto Sans Georgian automatically. */
+  --font-sans:
+    var(--font-dm-sans), var(--font-noto-georgian), ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
   /* Backgrounds & surfaces */
   --color-bg-lilac: #f4e5fa;
   --color-bg-pink: #fce4ec;
