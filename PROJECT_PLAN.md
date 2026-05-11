@@ -406,7 +406,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T2.1: Schema design — entity sketch
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: M
 - **Dependencies**: T1.5
 - **Description**:
