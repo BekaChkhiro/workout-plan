@@ -368,6 +368,37 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 ---
 
+#### T1.11: Test infrastructure — Vitest + RTL + Playwright
+
+- [ ] **Status**: TODO
+- **Complexity**: M
+- **Dependencies**: T1.2
+- **Description**:
+  - Install `vitest`, `@vitejs/plugin-react`, `@testing-library/react`, `@testing-library/jest-dom`, `@testing-library/user-event`, `jsdom`.
+  - `vitest.config.ts` with `jsdom` env, path alias `@/*`, setup file (`tests/setup.ts`) registering `@testing-library/jest-dom`.
+  - Install `@playwright/test`; `playwright.config.ts` targeting mobile viewport (Pixel 5 / iPhone 13) with `webServer` running `pnpm dev`.
+  - Scripts: `pnpm test` (vitest run), `pnpm test:watch`, `pnpm test:e2e` (playwright).
+  - Folder layout: `tests/unit/`, `tests/integration/`, `tests/e2e/`.
+  - One sanity test per runner so the setup is verified.
+- **Acceptance**: `pnpm test` and `pnpm test:e2e` both run and pass with their sample tests; `tsc --noEmit` stays green.
+
+---
+
+#### T1.12: GitHub Actions CI pipeline
+
+- [ ] **Status**: TODO
+- **Complexity**: M
+- **Dependencies**: T1.11
+- **Description**:
+  - `.github/workflows/ci.yml` triggered on `push` to `main` + `pull_request`.
+  - Jobs: `typecheck` (`pnpm tsc --noEmit`), `lint` (`pnpm lint`), `unit` (`pnpm test`), `e2e` (`pnpm exec playwright install --with-deps chromium && pnpm test:e2e`).
+  - Node 22.x, pnpm via `pnpm/action-setup`, dependency cache.
+  - E2E job sets `DATABASE_URL` to a Neon branch (via repo secret) or uses a dedicated test branch; skip if secret missing.
+  - Status check required on PRs to `main` via branch protection (manual config note).
+- **Acceptance**: CI runs green on a sample PR; all four jobs report status; failures block merge.
+
+---
+
 ### Phase 2 — Database Schema & Seed Data
 
 **Goal:** User-owned editable plan. Each user has personal copies of meals/workouts seeded from defaults at signup.
@@ -488,6 +519,33 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
   - `scripts/seed-owner.ts` — interactive prompt (or env-based: `OWNER_EMAIL`, `OWNER_PASSWORD`) to create the single user, hash password with Argon2, run `seedUserPlan`.
   - Idempotent: refuses to run if a user already exists, unless `--force`.
 - **Acceptance**: `pnpm seed:owner` creates `mei@fitplan.ge` with hashed password + full plan.
+
+---
+
+#### T2.10: Query helper integration tests
+
+- [ ] **Status**: TODO
+- **Complexity**: M
+- **Dependencies**: T2.8, T1.11
+- **Description**:
+  - Integration tests for typed query helpers from T2.8 against a real Neon test branch (`DATABASE_URL_TEST`).
+  - Test lifecycle: `beforeAll` runs migrations on a fresh schema, `beforeEach` truncates user-scoped tables, `afterAll` tears down.
+  - Cover the critical helpers: `getTodayMeals`, `markMealComplete`, `logWater`, `logWeight`, `getPlanForWeek`, `getAdherenceStats`.
+  - Assert ownership scoping — every helper must filter by `user_id`; cross-user reads/writes must reject.
+  - Run as `pnpm test:db` (vitest project, separate from unit) so unit run stays fast and DB-less.
+- **Acceptance**: All helpers covered; cross-user leak test fails when scoping is removed (regression guard verified).
+
+---
+
+#### T2.11: Seed/reset helper tests
+
+- [ ] **Status**: TODO
+- **Complexity**: S
+- **Dependencies**: T2.6, T2.7, T2.10
+- **Description**:
+  - Integration tests for `seedUserPlan()` and `resetUserPlan()` against the test DB.
+  - Cases: fresh seed inserts the expected count of meals/workouts/targets; idempotency (second call doesn't duplicate); reset wipes user-owned rows but leaves the user row and re-seeds defaults; user-scoped — seeding user A does not touch user B's data.
+- **Acceptance**: All four cases pass; row counts match the default sets from T2.4 + T2.5.
 
 ---
 
@@ -664,6 +722,34 @@ No further work in this phase. Phase 4 implements directly against these files.
 
 ---
 
+#### T4.14: Editor form validation tests
+
+- [ ] **Status**: TODO
+- **Complexity**: M
+- **Dependencies**: T4.11, T4.12, T1.11
+- **Description**:
+  - Unit tests for the zod schemas that back Meal Editor and Workout Editor forms.
+  - Cases: required fields, macro number bounds (kcal/protein/carbs/fat ≥ 0), ingredient list non-empty, workout intensity enum, weekday picker enum, YouTube URL shape.
+  - RTL component test for each editor: open sheet → submit empty → expect error messages; fill valid → submit → expect `onSubmit` called with parsed payload.
+- **Acceptance**: All invalid combinations reject with the exact Georgian error copy; valid forms produce the typed payload.
+
+---
+
+#### T4.15: Critical UI unit tests
+
+- [ ] **Status**: TODO
+- **Complexity**: M
+- **Dependencies**: T4.3, T4.5, T4.6, T1.11
+- **Description**:
+  - RTL tests for the load-bearing presentational components:
+    - `CalRing` — given P/N/F + goal props, asserts the ring stroke-dasharray and the three mini-bars render with the expected percentages.
+    - Water tracker — 8 glass row, tapping a glass increments + dispatches mutation; tapping a filled glass decrements; aria-label reflects current count.
+    - Meal card — active vs. done visual states based on `completed` prop; tap on active card triggers completion handler (T4.3).
+  - Stub TanStack Query mutations with a typed mock client.
+- **Acceptance**: Component states and interactions covered; tests don't depend on Tailwind class names beyond what the user observes (role/text/aria).
+
+---
+
 ### Phase 5 — Tracking & Progress
 
 **Goal:** Progress dashboard with weight, measurements, photos, stats; Rules and Profile screens; Settings editing.
@@ -776,6 +862,20 @@ No further work in this phase. Phase 4 implements directly against these files.
     - Danger zone → 3 row actions: reset plan (confirm modal), export CSV (download), logout
   - All persist to `user_settings`.
 - **Acceptance**: Every setting saves and reloads correctly; logout clears session.
+
+---
+
+#### T5.10: Progress logic tests
+
+- [ ] **Status**: TODO
+- **Complexity**: M
+- **Dependencies**: T5.3, T5.7, T1.11
+- **Description**:
+  - Pure-function unit tests for progress data shaping:
+    - Weight chart data builder — sparse log entries → continuous date series, gap-filling rule (latest-known carry-forward vs. null), tooltip label formatter (Georgian dates).
+    - Adherence stats from T5.7 — given meal_logs + water_logs + workout_logs over a window, computes meal adherence %, water target hit count, workout completion %.
+  - Edge cases: empty history, single entry, log spanning week boundaries, future-dated entries ignored.
+- **Acceptance**: All calculator functions covered with fixtures; output matches hand-computed expected values.
 
 ---
 
@@ -915,6 +1015,20 @@ No further work in this phase. Phase 4 implements directly against these files.
 
 ---
 
+#### T6.12: Push + cron logic tests
+
+- [ ] **Status**: TODO
+- **Complexity**: M
+- **Dependencies**: T6.6, T6.7, T6.8, T1.11
+- **Description**:
+  - Unit tests for the server-side push sender (T6.6): builds the correct VAPID payload, respects `ttl`, handles 410 Gone (drops dead subscription), retries 5xx with backoff.
+  - Tests for the Vercel Cron handler (T6.7): given a fixed `now` + a user's settings, returns the exact list of subscriptions due in the current 5-min window; respects per-meal toggles; skips muted users.
+  - Tests for localised content (T6.8): the title/body builder returns the expected `ka` strings for each notification kind (meal, workout, water).
+  - Mock `web-push` library at the module boundary; do not actually network.
+- **Acceptance**: All three layers covered; mocked web-push receives the expected payloads byte-for-byte.
+
+---
+
 ### Phase 7 — Auth, Polish & Deploy
 
 **Goal:** Real auth, accessibility pass, perf budget, production deploy on Vercel.
@@ -1038,6 +1152,38 @@ No further work in this phase. Phase 4 implements directly against these files.
   - Verify push delivery for the next due meal.
   - Document any blocker as a P0 follow-up.
 - **Acceptance**: All steps pass without crashes; notifications work.
+
+---
+
+#### T7.12: Auth tests — login, session, logout
+
+- [ ] **Status**: TODO
+- **Complexity**: M
+- **Dependencies**: T7.1, T7.2, T7.3, T2.10
+- **Description**:
+  - Integration tests against the test DB covering the Lucia flow:
+    - Password verify — correct password issues a session cookie; wrong password returns generic error (no enumeration).
+    - Session lookup — valid cookie resolves to the user; expired cookie returns null.
+    - Session refresh-on-use — older-than-30-days cookie extends expiry to now + 365 days; freshly issued cookie does not touch the DB.
+    - Logout — invalidates the session row + clears the cookie; subsequent requests with the old cookie return null.
+  - Argon2 verify is real (not mocked) to catch hashing config regressions.
+- **Acceptance**: All four behaviours covered; cookie + DB row state matches expectations after each path.
+
+---
+
+#### T7.13: E2E golden paths (Playwright)
+
+- [ ] **Status**: TODO
+- **Complexity**: L
+- **Dependencies**: T7.10, T1.11, T7.12
+- **Description**:
+  - Three Playwright specs on mobile viewport against the deployed preview (or local `pnpm build && pnpm start`):
+    1. **Login → Today → meal complete** — login form submits, redirect to Today, tap a meal card, see "done" visual, reload, state persists.
+    2. **Weight log** — Progress → Weight tab → open modal → enter value → submit → see new entry in list + chart updates.
+    3. **Plan week jump** — Plan screen → tap Week 3 → list reflects week-3 workouts; refresh keeps selection if persisted.
+  - Each spec seeds via a test-only API route (or `seed:owner` invoked from `globalSetup`) so the DB is in a known state.
+  - Trace + screenshot on failure; artifacts uploaded by the CI E2E job (T1.12).
+- **Acceptance**: All three specs green on CI against the preview deployment; failures produce a trace viewable locally.
 
 ---
 

@@ -45,3 +45,4 @@ next-env.d.ts
 
 # planflow local state
 .planflow/
+.planflow/worktrees.json
