@@ -1,0 +1,14 @@
+.next/
+out/
+build/
+node_modules/
+pnpm-lock.yaml
+next-env.d.ts
+public/
+*.min.*
+week-plan/
+design-prompts/
+PROJECT_PLAN.md
+AGENTS.md
+CLAUDE.md
+README.md
