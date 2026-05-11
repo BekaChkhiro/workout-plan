@@ -256,7 +256,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.1: Initialize repository
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: None
 - **Description**:
@@ -267,7 +267,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.2: Tooling — TypeScript strict, ESLint, Prettier, Husky
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T1.1
 - **Description**:
@@ -278,7 +278,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.3: Mobile-only viewport + safe-area handling
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T1.1
 - **Description**:
@@ -290,7 +290,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.4: Design system — tokens, Tailwind config, CSS variables
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: M
 - **Dependencies**: T1.2
 - **Description**:
@@ -302,7 +302,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.5: Neon Postgres setup + Drizzle config
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T1.1
 - **Description**:
@@ -325,7 +325,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.7: Fonts — DM Sans + Noto Sans Georgian via next/font
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T1.4
 - **Description**:
@@ -336,7 +336,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.8: Vercel project + env wiring
 
-- [ ] **Status**: TODO
+- [ ] **Status**: IN_PROGRESS
 - **Complexity**: S
 - **Dependencies**: T1.5
 - **Description**:
@@ -347,7 +347,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.9: Root layout + mobile container chrome
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: M
 - **Dependencies**: T1.3, T1.4, T1.7
 - **Description**:
@@ -358,7 +358,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.10: /dev gallery routes (development-only)
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T1.4, T1.6
 - **Description**:
@@ -370,7 +370,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T1.11: Test infrastructure — Vitest + RTL + Playwright
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: M
 - **Dependencies**: T1.2
 - **Description**:
