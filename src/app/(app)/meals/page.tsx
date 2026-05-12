@@ -111,17 +111,6 @@ export default async function MealsPage({
         </div>
       </section>
 
-      <div className="relative z-1 flex items-baseline justify-between px-[22px] pt-6 pb-3">
-        <div className="text-h2 font-bold">🍽 დღის რაციონი</div>
-        <button
-          type="button"
-          className="text-[12px] font-bold underline underline-offset-2"
-          style={{ color: "#7B4FA8", textDecorationColor: "rgba(123,79,168,0.4)" }}
-        >
-          ყველას რედაქტირება
-        </button>
-      </div>
-
       <MealsList meals={data.meals} />
 
       <div

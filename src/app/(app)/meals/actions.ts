@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { logMealComplete, unlogMealComplete, updateMeal } from "@/db/queries";
+import { logMealComplete, reorderMeals, unlogMealComplete, updateMeal } from "@/db/queries";
 import { getOwnerUser } from "@/lib/auth";
 import { getTodayInTimeZone } from "@/lib/date";
 
@@ -17,6 +17,14 @@ export async function updateMealAction(
   const owner = await getOwnerUser();
   const parsed = mealFormSchema.parse(data);
   await updateMeal(owner.id, mealId, parsed);
+  revalidatePath("/meals");
+  revalidatePath("/");
+  return { ok: true };
+}
+
+export async function reorderMealsAction(orderedIds: string[]): Promise<{ ok: true }> {
+  const owner = await getOwnerUser();
+  await reorderMeals(owner.id, orderedIds);
   revalidatePath("/meals");
   revalidatePath("/");
   return { ok: true };
