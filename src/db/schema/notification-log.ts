@@ -12,7 +12,7 @@ export const notificationLog = pgTable(
     userId: uuid()
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
-    kind: text().notNull(), // 'meal' | 'workout'
+    kind: text().notNull(), // 'meal' | 'workout' | 'water' | 'weight'
     targetAt: timestamp({ withTimezone: true }).notNull(),
     sentAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
   },

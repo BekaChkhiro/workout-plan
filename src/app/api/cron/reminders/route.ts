@@ -74,6 +74,10 @@ export async function POST(req: Request) {
   const now = new Date();
   let mealsSent = 0;
   let workoutsSent = 0;
+  let waterSent = 0;
+  let weightSent = 0;
+
+  const WATER_HOURS = [9, 11, 13, 15, 17, 19];
 
   const allUsers = await db
     .select({
@@ -81,6 +85,8 @@ export async function POST(req: Request) {
       timezone: users.timezone,
       notifMeals: userSettings.notifMeals,
       notifWorkouts: userSettings.notifWorkouts,
+      notifWater: userSettings.notifWater,
+      notifWeight: userSettings.notifWeight,
       planStartDate: userSettings.planStartDate,
       currentWeekOverride: userSettings.currentWeekOverride,
     })
@@ -196,10 +202,84 @@ export async function POST(req: Request) {
           workoutsSent++;
         }
       }
+
+      if (user.notifWater) {
+        for (const hour of WATER_HOURS) {
+          const timeStr = `${String(hour).padStart(2, "0")}:00`;
+          const waterMinutes = hour * 60;
+          if (waterMinutes < nowMinutes || waterMinutes >= windowEnd) continue;
+
+          const targetAt = localTimeAsUtc(todayStr, timeStr, tz);
+
+          const [existing] = await db
+            .select({ id: notificationLog.id })
+            .from(notificationLog)
+            .where(
+              and(
+                eq(notificationLog.userId, user.id),
+                eq(notificationLog.kind, "water"),
+                eq(notificationLog.targetAt, targetAt),
+              ),
+            )
+            .limit(1);
+          if (existing) continue;
+
+          await sendPushToUser(user.id, {
+            title: "💧 წყლის დროა!",
+            body: "სვი ერთი ჭიქა წყალი",
+            tag: `water-${todayStr}-${hour}`,
+            url: "/",
+          });
+
+          await db.insert(notificationLog).values({
+            userId: user.id,
+            kind: "water",
+            targetAt,
+          });
+
+          waterSent++;
+        }
+      }
+
+      if (user.notifWeight) {
+        const weightMinutes = 8 * 60;
+        if (weightMinutes >= nowMinutes && weightMinutes < windowEnd) {
+          const targetAt = localTimeAsUtc(todayStr, "08:00", tz);
+
+          const [existing] = await db
+            .select({ id: notificationLog.id })
+            .from(notificationLog)
+            .where(
+              and(
+                eq(notificationLog.userId, user.id),
+                eq(notificationLog.kind, "weight"),
+                eq(notificationLog.targetAt, targetAt),
+              ),
+            )
+            .limit(1);
+
+          if (!existing) {
+            await sendPushToUser(user.id, {
+              title: "⚖️ წონის ჩაწერა",
+              body: "დილის წონა ჩაიწერე",
+              tag: `weight-${todayStr}`,
+              url: "/",
+            });
+
+            await db.insert(notificationLog).values({
+              userId: user.id,
+              kind: "weight",
+              targetAt,
+            });
+
+            weightSent++;
+          }
+        }
+      }
     } catch {
       // Isolate per-user failures so one bad user doesn't block others.
     }
   }
 
-  return NextResponse.json({ ok: true, mealsSent, workoutsSent });
+  return NextResponse.json({ ok: true, mealsSent, workoutsSent, waterSent, weightSent });
 }
