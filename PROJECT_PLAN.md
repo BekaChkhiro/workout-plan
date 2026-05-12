@@ -485,12 +485,13 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T2.7: resetUserPlan() helper
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T2.6
 - **Description**:
-  - Wipes user's `meals`, `meal_ingredients`, `meal_swaps`, `workouts` rows, then re-runs `seedUserPlan`.
-  - Logs are preserved (meal_logs, workout_logs, etc.).
+  - `src/db/helpers/resetUserPlan.ts` — restores user's meal/workout templates (and their ingredients/swaps) to the current defaults.
+  - Updates meals in place (matched on `dayType + sortOrder`) and workouts via `INSERT … ON CONFLICT (user_id, week, weekday) DO UPDATE`, so existing IDs are preserved — `meal_logs`, `workout_logs`, `water_logs`, `weight_logs`, `measurement_logs`, and `user_settings` are all retained.
+  - meal_ingredients / meal_swaps (no logs reference them) are wiped and re-inserted from defaults.
 - **Acceptance**: User edits a meal, runs reset, meal returns to default.
 
 #### T2.8: Typed query helpers
