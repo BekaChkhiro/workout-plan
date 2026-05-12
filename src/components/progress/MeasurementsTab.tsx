@@ -29,12 +29,28 @@ function parseDateBlock(date: string): { day: string; month: string } {
   };
 }
 
-function MeasurementValue({ label, value }: { label: string; value: number | null }) {
+function MeasurementValue({
+  label,
+  value,
+  delta,
+}: {
+  label: string;
+  value: number | null;
+  delta?: number | null;
+}) {
   if (value == null) return null;
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-0.5">
       <span className="text-[10px] font-semibold text-[#9B8BB5]">{label}</span>
       <span className="text-body text-ink font-bold">{value} სმ</span>
+      {delta != null && (
+        <span
+          className="text-[10px] font-bold"
+          style={{ color: delta <= 0 ? "#2E8B57" : "#E06095" }}
+        >
+          {delta <= 0 ? "↓" : "↑"} {Math.abs(delta).toFixed(1)}
+        </span>
+      )}
     </div>
   );
 }
@@ -62,9 +78,17 @@ export function MeasurementsTab({ entries, today }: Props) {
         <p className="text-body text-ink-soft py-8 text-center">ჩანაწერები არ არის</p>
       ) : (
         <div className="flex flex-col gap-3">
-          {reversed.map((entry) => {
+          {reversed.map((entry, i) => {
+            const prev = reversed[i + 1];
             const { day, month } = parseDateBlock(entry.date);
             const isToday = entry.date === today;
+
+            const waistDelta =
+              prev?.waistCm != null && entry.waistCm != null ? entry.waistCm - prev.waistCm : null;
+            const armDelta =
+              prev?.armCm != null && entry.armCm != null ? entry.armCm - prev.armCm : null;
+            const thighDelta =
+              prev?.thighCm != null && entry.thighCm != null ? entry.thighCm - prev.thighCm : null;
 
             return (
               <div
@@ -90,9 +114,9 @@ export function MeasurementsTab({ entries, today }: Props) {
                 </div>
 
                 <div className="flex flex-1 items-center gap-4">
-                  <MeasurementValue label="წელი" value={entry.waistCm} />
-                  <MeasurementValue label="მკლავი" value={entry.armCm} />
-                  <MeasurementValue label="ბარძაყი" value={entry.thighCm} />
+                  <MeasurementValue label="წელი" value={entry.waistCm} delta={waistDelta} />
+                  <MeasurementValue label="მკლავი" value={entry.armCm} delta={armDelta} />
+                  <MeasurementValue label="ბარძაყი" value={entry.thighCm} delta={thighDelta} />
                 </div>
               </div>
             );
