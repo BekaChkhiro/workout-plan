@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F4E5FA"/>
+      <stop offset="100%" stop-color="#FF9EC5"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded-square background (iOS style, r≈230) -->
+  <rect width="1024" height="1024" rx="230" ry="230" fill="url(#bg)"/>
+
+  <!-- Dumbbell icon — all content within safe zone (102px padding each side) -->
+  <!-- Left outer plate -->
+  <rect x="217" y="412" width="78" height="200" rx="18" fill="white" opacity="0.95"/>
+  <!-- Left inner plate -->
+  <rect x="295" y="432" width="65" height="160" rx="10" fill="white" opacity="0.95"/>
+  <!-- Handle -->
+  <rect x="360" y="492" width="304" height="40" rx="20" fill="white" opacity="0.95"/>
+  <!-- Right inner plate -->
+  <rect x="664" y="432" width="65" height="160" rx="10" fill="white" opacity="0.95"/>
+  <!-- Right outer plate -->
+  <rect x="729" y="412" width="78" height="200" rx="18" fill="white" opacity="0.95"/>
+</svg>
