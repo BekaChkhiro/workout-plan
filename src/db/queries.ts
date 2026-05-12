@@ -59,6 +59,9 @@ export type WeightPoint = { date: string; kg: number };
 export type AdherenceStats = {
   meals: { completed: number; total: number; pct: number };
   workouts: { completed: number; total: number; pct: number };
+  water: { days: number; total: number; pct: number };
+  streak: number;
+  weightDeltaKg: number | null;
 };
 
 function parseDateUTC(date: string): Date {
@@ -611,7 +614,17 @@ export async function getAdherenceStats(
 ): Promise<AdherenceStats> {
   const anchor = await getUserPlanAnchor(userId);
 
-  const [planWorkouts, mealCountRows, mealLogsAgg, workoutLogsAgg] = await Promise.all([
+  const [
+    planWorkouts,
+    mealCountRows,
+    mealLogsAgg,
+    workoutLogsAgg,
+    settingsRows,
+    waterLogRows,
+    mealActivityRows,
+    workoutActivityRows,
+    weightRows,
+  ] = await Promise.all([
     db
       .select({ week: workouts.week, weekday: workouts.weekday, type: workouts.type })
       .from(workouts)
@@ -637,6 +650,36 @@ export async function getAdherenceStats(
           lte(workoutLogs.date, toDate),
         ),
       ),
+    db
+      .select({ waterTargetL: userSettings.waterTargetL })
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId))
+      .limit(1),
+    db
+      .select({ date: waterLogs.date, glassesCount: waterLogs.glassesCount })
+      .from(waterLogs)
+      .where(
+        and(
+          eq(waterLogs.userId, userId),
+          gte(waterLogs.date, fromDate),
+          lte(waterLogs.date, toDate),
+        ),
+      ),
+    db
+      .select({ date: mealLogs.date })
+      .from(mealLogs)
+      .where(and(eq(mealLogs.userId, userId), lte(mealLogs.date, toDate)))
+      .groupBy(mealLogs.date),
+    db
+      .select({ date: workoutLogs.date })
+      .from(workoutLogs)
+      .where(and(eq(workoutLogs.userId, userId), lte(workoutLogs.date, toDate)))
+      .groupBy(workoutLogs.date),
+    db
+      .select({ date: weightLogs.date, kg: weightLogs.kg })
+      .from(weightLogs)
+      .where(eq(weightLogs.userId, userId))
+      .orderBy(asc(weightLogs.date)),
   ]);
 
   const workoutTypeByKey = new Map<string, DayType>();
@@ -668,6 +711,29 @@ export async function getAdherenceStats(
   const mealsCompleted = Number(mealLogsAgg[0]?.count ?? 0);
   const workoutsCompleted = Number(workoutLogsAgg[0]?.count ?? 0);
 
+  const waterTargetL = Number(settingsRows[0]?.waterTargetL ?? 2);
+  const waterTargetGlasses = Math.ceil(waterTargetL / 0.25);
+  const totalDays = daysBetween(fromDate, toDate) + 1;
+  const waterDays = waterLogRows.filter((r) => r.glassesCount >= waterTargetGlasses).length;
+
+  const activityDates = new Set([
+    ...mealActivityRows.map((r) => r.date),
+    ...workoutActivityRows.map((r) => r.date),
+  ]);
+  let streak = 0;
+  let cursor = parseDateUTC(toDate).getTime();
+  while (activityDates.has(formatDateUTC(new Date(cursor)))) {
+    streak++;
+    cursor -= MS_PER_DAY;
+  }
+
+  const firstWeight = weightRows[0];
+  const lastWeight = weightRows[weightRows.length - 1];
+  const weightDeltaKg =
+    weightRows.length >= 2 && firstWeight && lastWeight
+      ? Number(lastWeight.kg) - Number(firstWeight.kg)
+      : null;
+
   return {
     meals: {
       completed: mealsCompleted,
@@ -679,6 +745,13 @@ export async function getAdherenceStats(
       total: workoutsTotal,
       pct: workoutsTotal > 0 ? Math.round((workoutsCompleted / workoutsTotal) * 100) : 0,
     },
+    water: {
+      days: waterDays,
+      total: totalDays,
+      pct: totalDays > 0 ? Math.round((waterDays / totalDays) * 100) : 0,
+    },
+    streak,
+    weightDeltaKg,
   };
 }
 

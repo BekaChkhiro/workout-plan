@@ -1,5 +1,6 @@
+import { StatsTab } from "@/components/progress/StatsTab";
 import { WeightTab } from "@/components/progress/WeightTab";
-import { getWeightHistory } from "@/db/queries";
+import { getAdherenceStats, getWeightHistory } from "@/db/queries";
 import { getOwnerUser } from "@/lib/auth";
 import { getTodayInTimeZone } from "@/lib/date";
 
@@ -27,8 +28,10 @@ export default async function ProgressPage({
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const from = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const weightEntries =
-    activeTab === "weight" ? await getWeightHistory(owner.id, { from }) : [];
+  const [weightEntries, stats] = await Promise.all([
+    activeTab === "weight" ? getWeightHistory(owner.id, { from }) : Promise.resolve([]),
+    activeTab === "stats" ? getAdherenceStats(owner.id, from, today) : Promise.resolve(null),
+  ]);
 
   return (
     <>
@@ -73,7 +76,7 @@ export default async function ProgressPage({
         {activeTab === "weight" && <WeightTab entries={weightEntries} today={today} />}
         {activeTab === "measurements" && <MeasurementsPlaceholder />}
         {activeTab === "photos" && <PhotosPlaceholder />}
-        {activeTab === "stats" && <StatsPlaceholder />}
+        {activeTab === "stats" && stats && <StatsTab stats={stats} />}
       </div>
     </>
   );
@@ -118,16 +121,6 @@ function PhotosPlaceholder() {
       emoji="📸"
       title="პროგრესის ფოტოები"
       subtitle="T5.6-ში — ფოტოების ატვირთვა და გალერეა"
-    />
-  );
-}
-
-function StatsPlaceholder() {
-  return (
-    <PlaceholderCard
-      emoji="✨"
-      title="სტატისტიკა"
-      subtitle="T5.7-ში — ვარჯიშის adherence და ტენდენციები"
     />
   );
 }
