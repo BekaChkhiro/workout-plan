@@ -1,8 +1,14 @@
-export default function PlanPage() {
-  return (
-    <section className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-display text-ink font-bold">გეგმა</h1>
-      <p className="text-body text-ink-soft mt-2">4-კვირიანი ბადე — T4.7-ში</p>
-    </section>
-  );
+import { PlanScreen } from "@/components/plan/PlanScreen";
+import { getFourWeekPlan } from "@/db/queries";
+import { getOwnerUser } from "@/lib/auth";
+import { getTodayInTimeZone } from "@/lib/date";
+
+export const dynamic = "force-dynamic";
+
+export default async function PlanPage() {
+  const owner = await getOwnerUser();
+  const date = getTodayInTimeZone(owner.timezone);
+  const plan = await getFourWeekPlan(owner.id, date);
+
+  return <PlanScreen plan={plan} />;
 }

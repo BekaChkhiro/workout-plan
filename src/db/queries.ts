@@ -215,6 +215,121 @@ export async function getWeekProgression(userId: string, week: number): Promise<
     .orderBy(asc(workouts.weekday));
 }
 
+export type PlanDayState = "done" | "active" | "rest" | "peak" | "pending";
+
+export type PlanDay = {
+  week: number;
+  weekday: number;
+  workout: Workout | null;
+  completed: boolean;
+  state: PlanDayState;
+};
+
+export type PlanWeek = {
+  week: number;
+  days: PlanDay[];
+  workoutCount: number;
+  completedCount: number;
+};
+
+export type FourWeekPlan = {
+  weeks: PlanWeek[];
+  todayWeek: number;
+  todayAutoWeek: number;
+  todayWeekday: number;
+  todayDate: string;
+  planStartDate: string;
+  currentWeekOverride: number | null;
+};
+
+function addDaysUTC(date: string, days: number): string {
+  return formatDateUTC(new Date(parseDateUTC(date).getTime() + days * MS_PER_DAY));
+}
+
+export async function getFourWeekPlan(userId: string, date: string): Promise<FourWeekPlan> {
+  const anchor = await getUserPlanAnchor(userId);
+  const { week: todayWeek, weekday: todayWeekday } = resolveWeekAndWeekday(
+    anchor.planStartDate,
+    anchor.currentWeekOverride,
+    date,
+  );
+  const { week: todayAutoWeek } = resolveWeekAndWeekday(anchor.planStartDate, null, date);
+
+  const diff = daysBetween(anchor.planStartDate, date);
+  const cycleLength = PLAN_WEEKS * DAYS_PER_WEEK;
+  const cycleOffset = ((diff % cycleLength) + cycleLength) % cycleLength;
+  const cycleStartDate = addDaysUTC(date, -cycleOffset);
+  const cycleEndDate = addDaysUTC(cycleStartDate, cycleLength - 1);
+
+  const [workoutRows, logRows] = await Promise.all([
+    db
+      .select()
+      .from(workouts)
+      .where(eq(workouts.userId, userId))
+      .orderBy(asc(workouts.week), asc(workouts.weekday)),
+    db
+      .select({ workoutId: workoutLogs.workoutId })
+      .from(workoutLogs)
+      .where(
+        and(
+          eq(workoutLogs.userId, userId),
+          gte(workoutLogs.date, cycleStartDate),
+          lte(workoutLogs.date, cycleEndDate),
+        ),
+      ),
+  ]);
+
+  const completedIds = new Set(logRows.map((r) => r.workoutId));
+  const workoutByKey = new Map<string, Workout>();
+  for (const w of workoutRows) {
+    workoutByKey.set(`${w.week}:${w.weekday}`, w);
+  }
+
+  const weeks: PlanWeek[] = [];
+  for (let w = 1; w <= PLAN_WEEKS; w++) {
+    const days: PlanDay[] = [];
+    let workoutCount = 0;
+    let completedCount = 0;
+
+    for (let wd = 0; wd < DAYS_PER_WEEK; wd++) {
+      const workout = workoutByKey.get(`${w}:${wd}`) ?? null;
+      const isRest = !workout || workout.type === "rest";
+      const completed = workout ? completedIds.has(workout.id) : false;
+      const isToday = w === todayWeek && wd === todayWeekday;
+
+      let state: PlanDayState;
+      if (isRest) {
+        state = "rest";
+      } else if (completed) {
+        state = "done";
+      } else if (isToday) {
+        state = "active";
+      } else if (workout && workout.type === "combo") {
+        state = "peak";
+      } else {
+        state = "pending";
+      }
+
+      if (!isRest) workoutCount += 1;
+      if (state === "done") completedCount += 1;
+
+      days.push({ week: w, weekday: wd, workout, completed, state });
+    }
+
+    weeks.push({ week: w, days, workoutCount, completedCount });
+  }
+
+  return {
+    weeks,
+    todayWeek,
+    todayAutoWeek,
+    todayWeekday,
+    todayDate: date,
+    planStartDate: anchor.planStartDate,
+    currentWeekOverride: anchor.currentWeekOverride,
+  };
+}
+
 export async function logMealComplete(userId: string, mealId: string, date: string): Promise<void> {
   await db
     .insert(mealLogs)
