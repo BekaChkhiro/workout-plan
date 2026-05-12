@@ -15,6 +15,13 @@
       "when": 1778584084187,
       "tag": "0001_eager_silvermane",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1778622899080,
+      "tag": "0002_square_mentallo",
+      "breakpoints": true
     }
   ]
 }
