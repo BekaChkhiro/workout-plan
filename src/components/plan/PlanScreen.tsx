@@ -1,8 +1,9 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useOptimistic, useState, useTransition } from "react";
 
+import { setWeekOverrideAction } from "@/app/(app)/plan/actions";
 import type { FourWeekPlan, PlanDay } from "@/db/queries";
 
 const WEEKDAY_LABELS_KA = [
@@ -59,113 +60,255 @@ type PlanScreenProps = {
 };
 
 export function PlanScreen({ plan }: PlanScreenProps) {
-  const initialWeek = (plan.currentWeekOverride ?? plan.todayAutoWeek) as 1 | 2 | 3 | 4;
-  const [selectedWeek, setSelectedWeek] = useState<1 | 2 | 3 | 4>(initialWeek);
+  const [optimisticOverride, setOptimisticOverride] = useOptimistic(plan.currentWeekOverride);
+  const [isPending, startTransition] = useTransition();
 
-  const week = useMemo(
-    () => plan.weeks.find((w) => w.week === selectedWeek) ?? plan.weeks[0]!,
-    [plan.weeks, selectedWeek],
-  );
+  const isManualMode = optimisticOverride !== null;
+  const activeWeek = (optimisticOverride ?? plan.todayAutoWeek) as 1 | 2 | 3 | 4;
+  const [selectedWeek, setSelectedWeek] = useState<1 | 2 | 3 | 4>(activeWeek);
+
+  const [pendingWeek, setPendingWeek] = useState<1 | 2 | 3 | 4 | null>(null);
+
+  const handleWeekTabClick = (n: 1 | 2 | 3 | 4) => {
+    if (isManualMode) {
+      setSelectedWeek(n);
+      if (n !== optimisticOverride) {
+        startTransition(async () => {
+          setOptimisticOverride(n);
+          await setWeekOverrideAction(n);
+        });
+      }
+    } else {
+      setPendingWeek(n);
+    }
+  };
+
+  const confirmManualMode = () => {
+    const week = pendingWeek!;
+    setPendingWeek(null);
+    setSelectedWeek(week);
+    startTransition(async () => {
+      setOptimisticOverride(week);
+      await setWeekOverrideAction(week);
+    });
+  };
+
+  const cancelDialog = () => setPendingWeek(null);
+
+  const switchToAuto = () => {
+    startTransition(async () => {
+      setOptimisticOverride(null);
+      setSelectedWeek(plan.todayAutoWeek as 1 | 2 | 3 | 4);
+      await setWeekOverrideAction(null);
+    });
+  };
+
+  const week = plan.weeks.find((w) => w.week === selectedWeek) ?? plan.weeks[0]!;
 
   return (
-    <div className="relative flex flex-1 flex-col">
-      <header className="relative z-1 flex items-center justify-between px-[22px] pt-2 pb-3.5">
-        <h1 className="text-display text-ink font-bold">
-          გეგმა <span className="text-[22px]">📅</span>
-        </h1>
-        <button
-          type="button"
-          className="text-[12px] font-bold text-[#5A3A8B]"
-          style={{
-            background: "rgba(255,255,255,0.65)",
-            border: "1.5px solid #C9A8E8",
-            padding: "7px 13px",
-            borderRadius: 999,
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          ✨ რედაქტირება
-        </button>
-      </header>
-
-      <nav aria-label="კვირები" className="relative z-1 px-[18px]">
-        <div
-          role="tablist"
-          className="flex gap-1 rounded-full p-[5px] backdrop-blur-md"
-          style={{
-            background: "rgba(255,255,255,0.55)",
-            border: "1px solid rgba(255,255,255,0.7)",
-            boxShadow: "0 2px 10px rgba(201,168,232,0.15)",
-          }}
-        >
-          {([1, 2, 3, 4] as const).map((n) => {
-            const active = n === selectedWeek;
-            return (
-              <button
-                key={n}
-                role="tab"
-                type="button"
-                aria-selected={active}
-                onClick={() => setSelectedWeek(n)}
-                className="relative flex-1 rounded-full px-1 py-2 text-center text-[12.5px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-pink)]"
-                style={{
-                  background: active ? "var(--gradient-tab-active)" : "transparent",
-                  color: active ? "#fff" : "#7B6A9B",
-                  fontWeight: active ? 800 : 600,
-                  letterSpacing: "0.01em",
-                  boxShadow: active ? "0 3px 10px rgba(255,158,197,0.4)" : "none",
-                  textShadow: active ? "0 1px 1px rgba(90,58,10,0.18)" : "none",
-                }}
-              >
-                კვირა {n}
-                {active && <span className="ml-1">✨</span>}
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-
-      <AnimatePresence mode="wait" initial={false}>
-        <motion.div
-          key={selectedWeek}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -6 }}
-          transition={{ duration: 0.18 }}
-          className="relative z-1 flex flex-col"
-        >
-          <WeekSummary plan={plan} selectedWeek={selectedWeek} />
-
-          <div className="relative z-1 flex items-baseline justify-between px-[22px] pt-6 pb-2.5">
-            <h2 className="text-h2 text-ink font-bold">📋 კვირის ცხრილი</h2>
-            <span className="text-[11px] font-semibold text-[#7B6A9B]">
-              {week.completedCount} / {week.workoutCount} ვარჯიში დასრულდა
-            </span>
-          </div>
-
-          <ul className="relative z-1 flex flex-col gap-2.5 px-[18px]">
-            {week.days.map((day) => (
-              <li key={`${day.week}:${day.weekday}`}>
-                <DayCard day={day} />
-              </li>
-            ))}
-          </ul>
-
-          <div
-            className="relative z-1 mx-[18px] mt-[18px] flex items-start gap-2.5 rounded-[20px] p-[14px_16px]"
+    <>
+      <div className="relative flex flex-1 flex-col">
+        <header className="relative z-1 flex items-center justify-between px-[22px] pt-2 pb-3.5">
+          <h1 className="text-display text-ink font-bold">
+            გეგმა <span className="text-[22px]">📅</span>
+          </h1>
+          <button
+            type="button"
+            className="text-[12px] font-bold text-[#5A3A8B]"
             style={{
-              background: "#E7F8EE",
-              border: "1px solid rgba(125,223,168,0.35)",
+              background: "rgba(255,255,255,0.65)",
+              border: "1.5px solid #C9A8E8",
+              padding: "7px 13px",
+              borderRadius: 999,
+              backdropFilter: "blur(8px)",
             }}
           >
-            <span className="text-[18px] leading-tight">💡</span>
-            <p className="text-[11.5px] leading-[1.45] font-medium text-[#2E6B47]">
-              ხუთშაბათი და კვირა — სრული დასვენება სავალდებულოა. კუნთი დასვენებისას იზრდება.
-            </p>
+            ✨ რედაქტირება
+          </button>
+        </header>
+
+        <nav aria-label="კვირები" className="relative z-1 px-[18px]">
+          <div
+            role="tablist"
+            className="flex gap-1 rounded-full p-[5px] backdrop-blur-md"
+            style={{
+              background: "rgba(255,255,255,0.55)",
+              border: "1px solid rgba(255,255,255,0.7)",
+              boxShadow: "0 2px 10px rgba(201,168,232,0.15)",
+            }}
+          >
+            {([1, 2, 3, 4] as const).map((n) => {
+              const active = n === selectedWeek;
+              return (
+                <button
+                  key={n}
+                  role="tab"
+                  type="button"
+                  aria-selected={active}
+                  disabled={isPending}
+                  onClick={() => handleWeekTabClick(n)}
+                  className="relative flex-1 rounded-full px-1 py-2 text-center text-[12.5px] transition-colors outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-brand-pink)] disabled:opacity-70"
+                  style={{
+                    background: active ? "var(--gradient-tab-active)" : "transparent",
+                    color: active ? "#fff" : "#7B6A9B",
+                    fontWeight: active ? 800 : 600,
+                    letterSpacing: "0.01em",
+                    boxShadow: active ? "0 3px 10px rgba(255,158,197,0.4)" : "none",
+                    textShadow: active ? "0 1px 1px rgba(90,58,10,0.18)" : "none",
+                  }}
+                >
+                  კვირა {n}
+                  {active && <span className="ml-1">✨</span>}
+                </button>
+              );
+            })}
           </div>
-        </motion.div>
+        </nav>
+
+        <AnimatePresence initial={false}>
+          {isManualMode && (
+            <motion.div
+              key="manual-badge"
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="relative z-1 mx-[18px] mt-2.5 flex items-center justify-between rounded-full px-3.5 py-2"
+              style={{
+                background: "rgba(201,168,232,0.18)",
+                border: "1px solid rgba(201,168,232,0.45)",
+              }}
+            >
+              <span className="text-[11.5px] font-semibold text-[#7B4FA8]">
+                ✋ ხელით რეჟიმი — კვირა {optimisticOverride}
+              </span>
+              <button
+                type="button"
+                onClick={switchToAuto}
+                disabled={isPending}
+                className="rounded-full px-2.5 py-1 text-[11px] font-bold text-white disabled:opacity-60"
+                style={{ background: "var(--gradient-brand)" }}
+              >
+                ავტო-ზე
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={selectedWeek}
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.18 }}
+            className="relative z-1 flex flex-col"
+          >
+            <WeekSummary plan={plan} selectedWeek={selectedWeek} />
+
+            <div className="relative z-1 flex items-baseline justify-between px-[22px] pt-6 pb-2.5">
+              <h2 className="text-h2 text-ink font-bold">📋 კვირის ცხრილი</h2>
+              <span className="text-[11px] font-semibold text-[#7B6A9B]">
+                {week.completedCount} / {week.workoutCount} ვარჯიში დასრულდა
+              </span>
+            </div>
+
+            <ul className="relative z-1 flex flex-col gap-2.5 px-[18px]">
+              {week.days.map((day) => (
+                <li key={`${day.week}:${day.weekday}`}>
+                  <DayCard day={day} />
+                </li>
+              ))}
+            </ul>
+
+            <div
+              className="relative z-1 mx-[18px] mt-[18px] flex items-start gap-2.5 rounded-[20px] p-[14px_16px]"
+              style={{
+                background: "#E7F8EE",
+                border: "1px solid rgba(125,223,168,0.35)",
+              }}
+            >
+              <span className="text-[18px] leading-tight">💡</span>
+              <p className="text-[11.5px] leading-[1.45] font-medium text-[#2E6B47]">
+                ხუთშაბათი და კვირა — სრული დასვენება სავალდებულოა. კუნთი დასვენებისას იზრდება.
+              </p>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      <AnimatePresence>
+        {pendingWeek !== null && (
+          <>
+            <motion.div
+              key="overlay"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-40"
+              style={{ background: "rgba(61,44,95,0.45)", backdropFilter: "blur(2px)" }}
+              onClick={cancelDialog}
+            />
+            <motion.div
+              key="sheet"
+              initial={{ opacity: 0, y: 40 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 40 }}
+              transition={{ duration: 0.22, ease: [0.32, 0.72, 0, 1] }}
+              className="fixed inset-x-0 bottom-[80px] z-50 mx-auto max-w-[480px] px-4"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="week-override-title"
+            >
+              <div
+                className="rounded-[28px] p-6"
+                style={{
+                  background: "#fff",
+                  boxShadow: "0 -4px 40px rgba(61,44,95,0.18), 0 8px 24px rgba(61,44,95,0.12)",
+                }}
+              >
+                <div className="mb-1 text-[22px]">✋</div>
+                <h2
+                  id="week-override-title"
+                  className="mb-2 text-[18px] font-extrabold text-[#3D2C5F]"
+                >
+                  გადახვიდე ხელით რეჟიმზე?
+                </h2>
+                <p className="mb-6 text-[13.5px] leading-snug text-[#7B6A9B]">
+                  კვირა {pendingWeek} ხელით დაადგინო? ავტომატური პროგრესი გამოირთვება — პროფილიდან
+                  შეძლებ დაბრუნებას.
+                </p>
+                <div className="flex gap-2.5">
+                  <button
+                    type="button"
+                    onClick={cancelDialog}
+                    className="flex-1 rounded-full py-3.5 text-[13.5px] font-bold text-[#7B6A9B]"
+                    style={{
+                      background: "#F4ECFA",
+                      border: "1px solid rgba(201,168,232,0.4)",
+                    }}
+                  >
+                    გაუქმება
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmManualMode}
+                    className="flex-1 rounded-full py-3.5 text-[13.5px] font-bold text-white"
+                    style={{
+                      background: "var(--gradient-brand)",
+                      boxShadow: "0 4px 14px rgba(255,158,197,0.45)",
+                    }}
+                  >
+                    დიახ, გადავდი
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
       </AnimatePresence>
-    </div>
+    </>
   );
 }
 
