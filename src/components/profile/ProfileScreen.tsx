@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import {
   exportUserDataAction,
+  logoutAction,
   resetPlanAction,
   updateNotifAction,
   updateThemeAction,
@@ -546,6 +547,7 @@ function DangerZoneSection() {
   const router = useRouter();
   const [resetting, setResetting] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleReset = async () => {
     if (!window.confirm("გეგმა გადაიტვირთება და კვირა 1-ზე დაბრუნდება. გაგრძელება?")) return;
@@ -574,6 +576,11 @@ function DangerZoneSection() {
     }
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await logoutAction();
+  };
+
   const actions = [
     {
       icon: "🔄",
@@ -592,8 +599,8 @@ function DangerZoneSection() {
     {
       icon: "🚪",
       label: "გასვლა",
-      onClick: () => router.push("/"),
-      loading: false,
+      onClick: handleLogout,
+      loading: loggingOut,
       destructive: true,
     },
   ];

@@ -1,10 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
 import { updateUserSettings } from "@/db/queries";
 import { getOwnerUser } from "@/lib/auth";
 import { getTodayInTimeZone } from "@/lib/date";
+import { lucia, validateRequest } from "@/lib/lucia";
 
 export async function updateDailyTargetsAction(data: {
   calorieTarget: number;
@@ -57,6 +60,17 @@ export async function resetPlanAction(): Promise<{ ok: true }> {
   revalidatePath("/plan");
   revalidatePath("/");
   return { ok: true };
+}
+
+export async function logoutAction(): Promise<never> {
+  const { session } = await validateRequest();
+  if (session) {
+    await lucia.invalidateSession(session.id);
+  }
+  const cookieStore = await cookies();
+  const blank = lucia.createBlankSessionCookie();
+  cookieStore.set(blank.name, blank.value, blank.attributes);
+  redirect("/login");
 }
 
 export async function exportUserDataAction(): Promise<{ csv: string }> {
