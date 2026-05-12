@@ -70,6 +70,10 @@ export function resolveWeekAndWeekday(
   return { week, weekday };
 }
 
+export function dayTypeFromWorkout(workout: Pick<Workout, "type"> | null | undefined): DayType {
+  return workout && workout.type !== "rest" ? "workout" : "rest";
+}
+
 function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
   const map = new Map<string, T[]>();
   for (const item of items) {
@@ -115,7 +119,7 @@ export async function getTodayPlan(userId: string, date: string): Promise<TodayP
     .limit(1);
 
   const workout = workoutRows[0] ?? null;
-  const dayType: DayType = workout && workout.type !== "rest" ? "workout" : "rest";
+  const dayType = dayTypeFromWorkout(workout);
 
   const mealRows = await db
     .select()
@@ -184,6 +188,23 @@ export async function getTodayPlan(userId: string, date: string): Promise<TodayP
       completed: completedMealIds.has(m.id),
     })),
   };
+}
+
+export async function getDayTypeForUser(userId: string, date: string): Promise<DayType> {
+  const anchor = await getUserPlanAnchor(userId);
+  const { week, weekday } = resolveWeekAndWeekday(
+    anchor.planStartDate,
+    anchor.currentWeekOverride,
+    date,
+  );
+
+  const rows = await db
+    .select({ type: workouts.type })
+    .from(workouts)
+    .where(and(eq(workouts.userId, userId), eq(workouts.week, week), eq(workouts.weekday, weekday)))
+    .limit(1);
+
+  return dayTypeFromWorkout(rows[0]);
 }
 
 export async function getWeekProgression(userId: string, week: number): Promise<Workout[]> {
@@ -416,7 +437,7 @@ export async function getAdherenceStats(
 
   const workoutTypeByKey = new Map<string, DayType>();
   for (const w of planWorkouts) {
-    workoutTypeByKey.set(`${w.week}:${w.weekday}`, w.type === "rest" ? "rest" : "workout");
+    workoutTypeByKey.set(`${w.week}:${w.weekday}`, dayTypeFromWorkout(w));
   }
 
   const mealCountByType: Record<DayType, number> = { workout: 0, rest: 0 };

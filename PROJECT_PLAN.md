@@ -677,7 +677,7 @@ No further work in this phase. Phase 4 implements directly against these files.
 
 #### T4.10: Workout-day-vs-rest-day auto-detection logic
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T2.8
 - **Description**:

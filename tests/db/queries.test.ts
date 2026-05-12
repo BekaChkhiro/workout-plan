@@ -3,7 +3,9 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 
 import { db } from "../../src/db";
 import {
+  dayTypeFromWorkout,
   getAdherenceStats,
+  getDayTypeForUser,
   getTodayPlan,
   getWeekProgression,
   getWeightHistory,
@@ -14,7 +16,15 @@ import {
   resolveWeekAndWeekday,
   unlogMealComplete,
 } from "../../src/db/queries";
-import { mealLogs, meals, waterLogs, weightLogs, workoutLogs, workouts } from "../../src/db/schema";
+import {
+  mealLogs,
+  meals,
+  userSettings,
+  waterLogs,
+  weightLogs,
+  workoutLogs,
+  workouts,
+} from "../../src/db/schema";
 
 import { createTestUser, truncateUserData } from "./helpers";
 
@@ -49,6 +59,95 @@ describe("query helpers (integration)", () => {
     it("honours currentWeekOverride", () => {
       const day10 = addDaysUTC(PLAN_START, 10);
       expect(resolveWeekAndWeekday(PLAN_START, 3, day10)).toEqual({ week: 3, weekday: 3 });
+    });
+  });
+
+  describe("dayTypeFromWorkout", () => {
+    it("returns 'rest' for null/undefined", () => {
+      expect(dayTypeFromWorkout(null)).toBe("rest");
+      expect(dayTypeFromWorkout(undefined)).toBe("rest");
+    });
+
+    it("returns 'rest' for a rest-type workout row", () => {
+      expect(dayTypeFromWorkout({ type: "rest" })).toBe("rest");
+    });
+
+    it("returns 'workout' for non-rest workout types", () => {
+      expect(dayTypeFromWorkout({ type: "pilates" })).toBe("workout");
+      expect(dayTypeFromWorkout({ type: "cardio" })).toBe("workout");
+      expect(dayTypeFromWorkout({ type: "combo" })).toBe("workout");
+    });
+  });
+
+  describe("getDayTypeForUser", () => {
+    it("returns 'workout' on the plan start (week 1, weekday 0 is pilates)", async () => {
+      const user = await createTestUser({ planStartDate: PLAN_START });
+      await expect(getDayTypeForUser(user.id, PLAN_START)).resolves.toBe("workout");
+    });
+
+    it("returns 'rest' on a seeded rest weekday (week 1, weekday 3)", async () => {
+      const user = await createTestUser({ planStartDate: PLAN_START });
+      const thursday = addDaysUTC(PLAN_START, 3);
+      await expect(getDayTypeForUser(user.id, thursday)).resolves.toBe("rest");
+    });
+
+    it("swaps day-type when a workout is moved to a previously-rest weekday", async () => {
+      // Acceptance: if the Thursday rest day gets a combo workout moved into it,
+      // and Friday's combo is changed to rest, the day-types swap accordingly.
+      const user = await createTestUser({ planStartDate: PLAN_START });
+      const thursday = addDaysUTC(PLAN_START, 3); // weekday 3 — seeded as rest
+      const friday = addDaysUTC(PLAN_START, 4); // weekday 4 — seeded as combo
+
+      expect(await getDayTypeForUser(user.id, thursday)).toBe("rest");
+      expect(await getDayTypeForUser(user.id, friday)).toBe("workout");
+
+      // Swap: Thursday → combo, Friday → rest.
+      await db
+        .update(workouts)
+        .set({ type: "combo" })
+        .where(and(eq(workouts.userId, user.id), eq(workouts.week, 1), eq(workouts.weekday, 3)));
+      await db
+        .update(workouts)
+        .set({ type: "rest" })
+        .where(and(eq(workouts.userId, user.id), eq(workouts.week, 1), eq(workouts.weekday, 4)));
+
+      expect(await getDayTypeForUser(user.id, thursday)).toBe("workout");
+      expect(await getDayTypeForUser(user.id, friday)).toBe("rest");
+    });
+
+    it("respects currentWeekOverride when resolving the weekday's workout", async () => {
+      const user = await createTestUser({ planStartDate: PLAN_START });
+
+      // Force week=3 even on the plan start date.
+      await db
+        .update(userSettings)
+        .set({ currentWeekOverride: 3 })
+        .where(eq(userSettings.userId, user.id));
+
+      // Override week 3's Monday (weekday 0) to rest; expect helper to follow override.
+      await db
+        .update(workouts)
+        .set({ type: "rest" })
+        .where(and(eq(workouts.userId, user.id), eq(workouts.week, 3), eq(workouts.weekday, 0)));
+
+      await expect(getDayTypeForUser(user.id, PLAN_START)).resolves.toBe("rest");
+    });
+
+    it("returns 'rest' for users with no workouts seeded", async () => {
+      const user = await createTestUser({ planStartDate: PLAN_START });
+      await db.delete(workouts).where(eq(workouts.userId, user.id));
+      await expect(getDayTypeForUser(user.id, PLAN_START)).resolves.toBe("rest");
+    });
+
+    it("isolates day-type lookup by user_id", async () => {
+      const userA = await createTestUser({ planStartDate: PLAN_START });
+      const userB = await createTestUser({ planStartDate: PLAN_START });
+
+      // Wipe userA's workouts so their plan-start is 'rest'; userB's stays 'workout'.
+      await db.delete(workouts).where(eq(workouts.userId, userA.id));
+
+      expect(await getDayTypeForUser(userA.id, PLAN_START)).toBe("rest");
+      expect(await getDayTypeForUser(userB.id, PLAN_START)).toBe("workout");
     });
   });
 
