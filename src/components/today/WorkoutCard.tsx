@@ -1,5 +1,7 @@
 import type { Workout } from "@/db/schema";
 
+import { WorkoutCompleteButton } from "./WorkoutCompleteButton";
+
 type WorkoutCardProps = {
   workout: Workout | null;
   completed: boolean;
@@ -82,17 +84,7 @@ export function WorkoutCard({ workout, completed }: WorkoutCardProps) {
           </li>
         ))}
       </ul>
-      <button
-        type="button"
-        disabled
-        className="w-full rounded-full border-none px-4 py-[15px] text-[14.5px] font-bold tracking-wide text-white"
-        style={{
-          background: completed ? "var(--color-brand-mint)" : "var(--gradient-brand)",
-          boxShadow: "0 6px 18px rgba(201,168,232,0.5)",
-        }}
-      >
-        {completed ? "შესრულდა ✓" : "დასრულდა ✨"}
-      </button>
+      <WorkoutCompleteButton workoutId={workout.id} completed={completed} />
     </section>
   );
 }
