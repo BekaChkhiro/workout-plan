@@ -1,24 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-} from "@dnd-kit/core";
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import type { DragEndEvent } from "@dnd-kit/core";
-import {
-  SortableContext,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation } from "@tanstack/react-query";
 import { Drawer } from "vaul";
 import { useEffect } from "react";
-import { Controller, type UseFormRegister, useFieldArray, useForm } from "react-hook-form";
+import {
+  Controller,
+  type UseFormRegister,
+  useFieldArray,
+  useForm,
+  useWatch,
+} from "react-hook-form";
 
 import type { MealWithDetails } from "@/db/queries";
 import { type MealFormValues, mealFormSchema } from "../meal-schema";
@@ -46,7 +42,11 @@ function SortableIngredientRow({
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
       className="flex items-center gap-2.5 rounded-[14px] border border-[#F4ECFA] bg-white px-[14px] py-3 shadow-[0_1px_4px_rgba(201,168,232,0.10)]"
     >
       <button
@@ -104,13 +104,15 @@ export function MealEditorSheet({
     swaps: meal.swaps.map((s) => ({ id: s.id, name: s.name })),
   };
 
-  const { register, handleSubmit, control, watch, setValue, reset } = useForm<MealFormValues>({
+  const { register, handleSubmit, control, setValue, reset } = useForm<MealFormValues>({
     resolver: zodResolver(mealFormSchema),
     defaultValues,
   });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { reset(defaultValues); }, [meal.id]);
+  useEffect(() => {
+    reset(defaultValues);
+  }, [meal.id]);
 
   const {
     fields: ingredientFields,
@@ -135,7 +137,7 @@ export function MealEditorSheet({
     moveIngredient(oldIndex, newIndex);
   }
 
-  const dayType = watch("dayType");
+  const dayType = useWatch({ control, name: "dayType" });
 
   const mutation = useMutation({
     mutationFn: (values: MealFormValues) => updateMealAction(meal.id, values),
@@ -151,9 +153,9 @@ export function MealEditorSheet({
             <div className="h-1 w-10 rounded-full bg-[#E8DFF7]" />
           </div>
 
-          <div className="border-b border-[#F4ECFA] px-[22px] pb-[14px] pt-3">
+          <div className="border-b border-[#F4ECFA] px-[22px] pt-3 pb-[14px]">
             <div className="flex items-center justify-between gap-3">
-              <div className="text-[19px] font-extrabold leading-[1.15] tracking-[-0.01em] text-[#3D2C5F]">
+              <div className="text-[19px] leading-[1.15] font-extrabold tracking-[-0.01em] text-[#3D2C5F]">
                 {meal.name} — რედაქტირება
               </div>
               <button
@@ -199,7 +201,7 @@ export function MealEditorSheet({
                 <textarea
                   {...register("summary")}
                   rows={2}
-                  className="w-full resize-none rounded-[14px] bg-[#F4ECFA] px-[14px] py-3 text-[13px] font-medium leading-[1.45] text-[#3D2C5F] outline-none placeholder:text-[#9785B5]"
+                  className="w-full resize-none rounded-[14px] bg-[#F4ECFA] px-[14px] py-3 text-[13px] leading-[1.45] font-medium text-[#3D2C5F] outline-none placeholder:text-[#9785B5]"
                   placeholder="კვების შინაარსი..."
                 />
               </div>
@@ -213,7 +215,7 @@ export function MealEditorSheet({
                         key={dt}
                         type="button"
                         onClick={() => setValue("dayType", dt)}
-                        className="whitespace-nowrap rounded-full px-[10px] py-[5px] text-[10.5px] font-bold transition-colors"
+                        className="rounded-full px-[10px] py-[5px] text-[10.5px] font-bold whitespace-nowrap transition-colors"
                         style={{
                           background: active
                             ? "linear-gradient(135deg, #FFD66B 0%, #FF9EC5 100%)"
@@ -344,7 +346,7 @@ export function MealEditorSheet({
             </div>
           </form>
 
-          <div className="flex items-center gap-3 border-t border-[#F4ECFA] bg-white px-[22px] pb-[22px] pt-[14px]">
+          <div className="flex items-center gap-3 border-t border-[#F4ECFA] bg-white px-[22px] pt-[14px] pb-[22px]">
             <button
               type="button"
               onClick={() => onOpenChange(false)}
@@ -369,16 +371,10 @@ export function MealEditorSheet({
   );
 }
 
-function SectionLabel({
-  children,
-  right,
-}: {
-  children: React.ReactNode;
-  right?: React.ReactNode;
-}) {
+function SectionLabel({ children, right }: { children: React.ReactNode; right?: React.ReactNode }) {
   return (
-    <div className="mx-[22px] mb-2 mt-[18px] flex items-baseline justify-between">
-      <span className="text-[10.5px] font-bold uppercase tracking-[0.08em] text-[#7B4FA8]">
+    <div className="mx-[22px] mt-[18px] mb-2 flex items-baseline justify-between">
+      <span className="text-[10.5px] font-bold tracking-[0.08em] text-[#7B4FA8] uppercase">
         {children}
       </span>
       {right}

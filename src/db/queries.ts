@@ -553,42 +553,44 @@ export async function updateMeal(
     .limit(1);
   if (existing.length === 0) throw new Error("meal not found");
 
-  await db
-    .update(meals)
-    .set({
-      time: data.time,
-      name: data.name,
-      summary: data.summary,
-      dayType: data.dayType,
-      calories: data.calories,
-      pG: data.pG,
-      nG: data.nG,
-      fG: data.fG,
-    })
-    .where(eq(meals.id, mealId));
+  await db.transaction(async (tx) => {
+    await tx
+      .update(meals)
+      .set({
+        time: data.time,
+        name: data.name,
+        summary: data.summary,
+        dayType: data.dayType,
+        calories: data.calories,
+        pG: data.pG,
+        nG: data.nG,
+        fG: data.fG,
+      })
+      .where(eq(meals.id, mealId));
 
-  await db.delete(mealIngredients).where(eq(mealIngredients.mealId, mealId));
-  if (data.ingredients.length > 0) {
-    await db.insert(mealIngredients).values(
-      data.ingredients.map((ing, i) => ({
-        mealId,
-        name: ing.name,
-        amount: ing.amount,
-        sortOrder: i,
-      })),
-    );
-  }
+    await tx.delete(mealIngredients).where(eq(mealIngredients.mealId, mealId));
+    if (data.ingredients.length > 0) {
+      await tx.insert(mealIngredients).values(
+        data.ingredients.map((ing, i) => ({
+          mealId,
+          name: ing.name,
+          amount: ing.amount,
+          sortOrder: i,
+        })),
+      );
+    }
 
-  await db.delete(mealSwaps).where(eq(mealSwaps.mealId, mealId));
-  if (data.swaps.length > 0) {
-    await db.insert(mealSwaps).values(
-      data.swaps.map((s, i) => ({
-        mealId,
-        name: s.name,
-        sortOrder: i,
-      })),
-    );
-  }
+    await tx.delete(mealSwaps).where(eq(mealSwaps.mealId, mealId));
+    if (data.swaps.length > 0) {
+      await tx.insert(mealSwaps).values(
+        data.swaps.map((s, i) => ({
+          mealId,
+          name: s.name,
+          sortOrder: i,
+        })),
+      );
+    }
+  });
 }
 
 export async function reorderMeals(userId: string, orderedIds: string[]): Promise<void> {
