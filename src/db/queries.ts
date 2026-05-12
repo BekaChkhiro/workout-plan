@@ -1,0 +1,343 @@
+import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+
+import { db } from "./index";
+import {
+  mealIngredients,
+  mealLogs,
+  mealSwaps,
+  meals,
+  userSettings,
+  waterLogs,
+  weightLogs,
+  workoutLogs,
+  workouts,
+  type Meal,
+  type MealIngredient,
+  type MealSwap,
+  type Workout,
+} from "./schema";
+
+const MS_PER_DAY = 86_400_000;
+const PLAN_WEEKS = 4;
+const DAYS_PER_WEEK = 7;
+
+export type DayType = "workout" | "rest";
+
+export type MealWithDetails = Meal & {
+  ingredients: MealIngredient[];
+  swaps: MealSwap[];
+  completed: boolean;
+};
+
+export type TodayPlan = {
+  date: string;
+  week: number;
+  weekday: number;
+  dayType: DayType;
+  workout: Workout | null;
+  workoutCompleted: boolean;
+  meals: MealWithDetails[];
+};
+
+export type WeightPoint = { date: string; kg: number };
+
+export type AdherenceStats = {
+  meals: { completed: number; total: number; pct: number };
+  workouts: { completed: number; total: number; pct: number };
+};
+
+function parseDateUTC(date: string): Date {
+  return new Date(`${date}T00:00:00Z`);
+}
+
+function formatDateUTC(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function daysBetween(from: string, to: string): number {
+  return Math.floor((parseDateUTC(to).getTime() - parseDateUTC(from).getTime()) / MS_PER_DAY);
+}
+
+export function resolveWeekAndWeekday(
+  planStartDate: string,
+  currentWeekOverride: number | null,
+  date: string,
+): { week: number; weekday: number } {
+  const diff = daysBetween(planStartDate, date);
+  const weekday = ((diff % DAYS_PER_WEEK) + DAYS_PER_WEEK) % DAYS_PER_WEEK;
+  const cycleWeek = ((Math.floor(diff / DAYS_PER_WEEK) % PLAN_WEEKS) + PLAN_WEEKS) % PLAN_WEEKS;
+  const week = currentWeekOverride ?? cycleWeek + 1;
+  return { week, weekday };
+}
+
+function groupBy<T>(items: readonly T[], key: (item: T) => string): Map<string, T[]> {
+  const map = new Map<string, T[]>();
+  for (const item of items) {
+    const k = key(item);
+    const arr = map.get(k);
+    if (arr) arr.push(item);
+    else map.set(k, [item]);
+  }
+  return map;
+}
+
+async function getUserPlanAnchor(
+  userId: string,
+): Promise<{ planStartDate: string; currentWeekOverride: number | null }> {
+  const rows = await db
+    .select({
+      planStartDate: userSettings.planStartDate,
+      currentWeekOverride: userSettings.currentWeekOverride,
+    })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error(`No user_settings row for user ${userId}`);
+  }
+  return row;
+}
+
+export async function getTodayPlan(userId: string, date: string): Promise<TodayPlan> {
+  const anchor = await getUserPlanAnchor(userId);
+  const { week, weekday } = resolveWeekAndWeekday(
+    anchor.planStartDate,
+    anchor.currentWeekOverride,
+    date,
+  );
+
+  const workoutRows = await db
+    .select()
+    .from(workouts)
+    .where(and(eq(workouts.userId, userId), eq(workouts.week, week), eq(workouts.weekday, weekday)))
+    .limit(1);
+
+  const workout = workoutRows[0] ?? null;
+  const dayType: DayType = workout && workout.type !== "rest" ? "workout" : "rest";
+
+  const mealRows = await db
+    .select()
+    .from(meals)
+    .where(and(eq(meals.userId, userId), eq(meals.dayType, dayType)))
+    .orderBy(asc(meals.sortOrder));
+
+  const mealIds = mealRows.map((m) => m.id);
+
+  const [ingredientRows, swapRows, mealLogRows, workoutLogRows] = await Promise.all([
+    mealIds.length > 0
+      ? db
+          .select()
+          .from(mealIngredients)
+          .where(inArray(mealIngredients.mealId, mealIds))
+          .orderBy(asc(mealIngredients.sortOrder))
+      : Promise.resolve<MealIngredient[]>([]),
+    mealIds.length > 0
+      ? db
+          .select()
+          .from(mealSwaps)
+          .where(inArray(mealSwaps.mealId, mealIds))
+          .orderBy(asc(mealSwaps.sortOrder))
+      : Promise.resolve<MealSwap[]>([]),
+    mealIds.length > 0
+      ? db
+          .select({ mealId: mealLogs.mealId })
+          .from(mealLogs)
+          .where(
+            and(
+              eq(mealLogs.userId, userId),
+              eq(mealLogs.date, date),
+              inArray(mealLogs.mealId, mealIds),
+            ),
+          )
+      : Promise.resolve<{ mealId: string }[]>([]),
+    workout
+      ? db
+          .select({ workoutId: workoutLogs.workoutId })
+          .from(workoutLogs)
+          .where(
+            and(
+              eq(workoutLogs.userId, userId),
+              eq(workoutLogs.date, date),
+              eq(workoutLogs.workoutId, workout.id),
+            ),
+          )
+      : Promise.resolve<{ workoutId: string }[]>([]),
+  ]);
+
+  const ingredientsByMeal = groupBy(ingredientRows, (i) => i.mealId);
+  const swapsByMeal = groupBy(swapRows, (s) => s.mealId);
+  const completedMealIds = new Set(mealLogRows.map((r) => r.mealId));
+
+  return {
+    date,
+    week,
+    weekday,
+    dayType,
+    workout,
+    workoutCompleted: workoutLogRows.length > 0,
+    meals: mealRows.map((m) => ({
+      ...m,
+      ingredients: ingredientsByMeal.get(m.id) ?? [],
+      swaps: swapsByMeal.get(m.id) ?? [],
+      completed: completedMealIds.has(m.id),
+    })),
+  };
+}
+
+export async function getWeekProgression(userId: string, week: number): Promise<Workout[]> {
+  return db
+    .select()
+    .from(workouts)
+    .where(and(eq(workouts.userId, userId), eq(workouts.week, week)))
+    .orderBy(asc(workouts.weekday));
+}
+
+export async function logMealComplete(userId: string, mealId: string, date: string): Promise<void> {
+  await db
+    .insert(mealLogs)
+    .values({ userId, mealId, date })
+    .onConflictDoNothing({
+      target: [mealLogs.userId, mealLogs.mealId, mealLogs.date],
+    });
+}
+
+export async function unlogMealComplete(
+  userId: string,
+  mealId: string,
+  date: string,
+): Promise<void> {
+  await db
+    .delete(mealLogs)
+    .where(and(eq(mealLogs.userId, userId), eq(mealLogs.mealId, mealId), eq(mealLogs.date, date)));
+}
+
+export async function logWorkoutComplete(
+  userId: string,
+  workoutId: string,
+  date: string,
+): Promise<void> {
+  await db
+    .insert(workoutLogs)
+    .values({ userId, workoutId, date })
+    .onConflictDoNothing({
+      target: [workoutLogs.userId, workoutLogs.workoutId, workoutLogs.date],
+    });
+}
+
+export async function logWater(userId: string, date: string, glasses: number): Promise<void> {
+  await db
+    .insert(waterLogs)
+    .values({ userId, date, glassesCount: glasses })
+    .onConflictDoUpdate({
+      target: [waterLogs.userId, waterLogs.date],
+      set: { glassesCount: glasses },
+    });
+}
+
+export async function logWeight(userId: string, date: string, kg: number): Promise<void> {
+  const value = kg.toString();
+  await db
+    .insert(weightLogs)
+    .values({ userId, date, kg: value })
+    .onConflictDoUpdate({
+      target: [weightLogs.userId, weightLogs.date],
+      set: { kg: value },
+    });
+}
+
+export async function getWeightHistory(
+  userId: string,
+  range: { from?: string; to?: string } = {},
+): Promise<WeightPoint[]> {
+  const filters = [eq(weightLogs.userId, userId)];
+  if (range.from) filters.push(gte(weightLogs.date, range.from));
+  if (range.to) filters.push(lte(weightLogs.date, range.to));
+
+  const rows = await db
+    .select({ date: weightLogs.date, kg: weightLogs.kg })
+    .from(weightLogs)
+    .where(and(...filters))
+    .orderBy(asc(weightLogs.date));
+
+  return rows.map((r) => ({ date: r.date, kg: Number(r.kg) }));
+}
+
+export async function getAdherenceStats(
+  userId: string,
+  fromDate: string,
+  toDate: string,
+): Promise<AdherenceStats> {
+  const anchor = await getUserPlanAnchor(userId);
+
+  const [planWorkouts, mealCountRows, mealLogsAgg, workoutLogsAgg] = await Promise.all([
+    db
+      .select({ week: workouts.week, weekday: workouts.weekday, type: workouts.type })
+      .from(workouts)
+      .where(eq(workouts.userId, userId)),
+    db
+      .select({ dayType: meals.dayType, count: sql<number>`count(*)::int` })
+      .from(meals)
+      .where(eq(meals.userId, userId))
+      .groupBy(meals.dayType),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(mealLogs)
+      .where(
+        and(eq(mealLogs.userId, userId), gte(mealLogs.date, fromDate), lte(mealLogs.date, toDate)),
+      ),
+    db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(workoutLogs)
+      .where(
+        and(
+          eq(workoutLogs.userId, userId),
+          gte(workoutLogs.date, fromDate),
+          lte(workoutLogs.date, toDate),
+        ),
+      ),
+  ]);
+
+  const workoutTypeByKey = new Map<string, DayType>();
+  for (const w of planWorkouts) {
+    workoutTypeByKey.set(`${w.week}:${w.weekday}`, w.type === "rest" ? "rest" : "workout");
+  }
+
+  const mealCountByType: Record<DayType, number> = { workout: 0, rest: 0 };
+  for (const row of mealCountRows) {
+    mealCountByType[row.dayType] = Number(row.count);
+  }
+
+  let mealsTotal = 0;
+  let workoutsTotal = 0;
+  const start = parseDateUTC(fromDate).getTime();
+  const end = parseDateUTC(toDate).getTime();
+  for (let t = start; t <= end; t += MS_PER_DAY) {
+    const d = formatDateUTC(new Date(t));
+    const { week, weekday } = resolveWeekAndWeekday(
+      anchor.planStartDate,
+      anchor.currentWeekOverride,
+      d,
+    );
+    const type = workoutTypeByKey.get(`${week}:${weekday}`) ?? "rest";
+    mealsTotal += mealCountByType[type];
+    if (type === "workout") workoutsTotal += 1;
+  }
+
+  const mealsCompleted = Number(mealLogsAgg[0]?.count ?? 0);
+  const workoutsCompleted = Number(workoutLogsAgg[0]?.count ?? 0);
+
+  return {
+    meals: {
+      completed: mealsCompleted,
+      total: mealsTotal,
+      pct: mealsTotal > 0 ? Math.round((mealsCompleted / mealsTotal) * 100) : 0,
+    },
+    workouts: {
+      completed: workoutsCompleted,
+      total: workoutsTotal,
+      pct: workoutsTotal > 0 ? Math.round((workoutsCompleted / workoutsTotal) * 100) : 0,
+    },
+  };
+}
