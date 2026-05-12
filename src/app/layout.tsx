@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, Noto_Sans_Georgian } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
+import { RegisterPWA } from "@/components/RegisterPWA";
 
 /* DM Sans handles Latin; Noto Sans Georgian fills in Georgian glyphs the
    first family lacks. Both are variable fonts — no `weight` needed.
@@ -164,6 +165,7 @@ export default function RootLayout({
       className={`${dmSans.variable} ${notoSansGeorgian.variable} h-full antialiased`}
     >
       <body className="from-bg-lilac to-bg-pink text-ink min-h-screen bg-linear-to-b font-sans">
+        <RegisterPWA />
         <Providers>{children}</Providers>
       </body>
     </html>
