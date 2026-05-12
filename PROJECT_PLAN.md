@@ -441,7 +441,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T2.3: Initial migration to Neon
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: S
 - **Dependencies**: T2.2
 - **Description**:
