@@ -583,3 +583,22 @@ export async function getAdherenceStats(
     },
   };
 }
+
+export async function setWeekOverride(
+  userId: string,
+  week: 1 | 2 | 3 | 4 | null,
+): Promise<void> {
+  await db
+    .update(userSettings)
+    .set({ currentWeekOverride: week })
+    .where(eq(userSettings.userId, userId));
+}
+
+export async function getWeekModeSetting(
+  userId: string,
+  date: string,
+): Promise<{ currentWeekOverride: number | null; todayAutoWeek: number }> {
+  const anchor = await getUserPlanAnchor(userId);
+  const { week: todayAutoWeek } = resolveWeekAndWeekday(anchor.planStartDate, null, date);
+  return { currentWeekOverride: anchor.currentWeekOverride, todayAutoWeek };
+}
