@@ -11,7 +11,7 @@
 - A **mobile-only PWA** for tracking 5 daily meals, weekly workouts, water, weight, and body measurements over a 4-week cycle.
 - **Single-user** — one account, the owner. Email + password login with 1-year "remember me" session.
 - **Fully editable plan** — every meal, workout, target value, and progression can be edited via in-app editors.
-- **Push-notification-driven** — meal and workout reminders fired by Vercel Cron, delivered via Web Push (VAPID).
+- **Push-notification-driven** — meal and workout reminders fired by an external HTTP scheduler (cron-job.org), delivered via Web Push (VAPID).
 - **Bilingual-ready, Georgian-first** — all UI copy in `ka`, fonts loaded for both Latin (DM Sans) and Georgian (Noto Sans Georgian).
 - Visual identity: **Soft Pastel Feminine** (Style C), locked in week-plan/screens/.
 
@@ -47,8 +47,8 @@ The owner has a real 4-week nutrition + workout plan from a source document (`Do
 | Charts | Recharts | Weight + measurement charts; tree-shakes well |
 | Animations | Framer Motion (`motion` package) | Style C requires bouncy springs + confetti |
 | PWA | Custom service worker + `next-pwa` plugin OR Serwist | Final pick during T6.3 (Serwist preferred — actively maintained) |
-| Push notifications | `web-push` + VAPID + Vercel Cron | Free tier sufficient; works on iOS 16.4+ installed PWAs and Android Chrome |
-| Hosting | Vercel Hobby tier | $0 for personal use; serverless functions handle cron + push |
+| Push notifications | `web-push` + VAPID + cron-job.org (external scheduler) | Free tier sufficient; works on iOS 16.4+ installed PWAs and Android Chrome. External scheduler avoids Vercel Pro requirement for sub-daily crons. |
+| Hosting | Vercel Hobby tier | $0 for personal use; serverless functions handle push send; cron triggered via external HTTP scheduler |
 | Fonts | `next/font` — DM Sans (Latin) + Noto Sans Georgian | Both self-hosted, optimised, no CDN dependency at runtime |
 
 ---
@@ -128,7 +128,7 @@ These four gaps are small. Extend the prototype during the relevant task work an
 | Initial JS bundle (gzipped) | < 200 KB | < 150 KB | Lazy-load non-critical screens (Rules, Editors) |
 | Time-to-Interactive (Slow 4G) | < 4s | < 3s | Vercel Edge cache + RSC streaming |
 | Daily active reminders | 6 (5 meals + 1 workout) | + 1 water + 1 weight | Configurable per category in Profile |
-| Push delivery latency (Vercel Cron → device) | < 90s | < 30s | iOS APNS routing is the variable |
+| Push delivery latency (scheduler → device) | < 90s | < 30s | iOS APNS routing is the variable |
 | DB queries per Today-screen load | ≤ 4 | ≤ 2 | Aggregate via one RSC fetch |
 | Offline support | Cached shell + last 24h data | Full week-ahead cache | Stale-while-revalidate via service worker |
 | Accessibility (axe-core) | 0 critical issues | 0 issues at all levels | Manual screen-reader smoke too |
@@ -219,9 +219,9 @@ None. All dev on existing Mac + iPhone.
 | User forgets to "Add to Home Screen" — push silently fails | High | Medium | Onboarding step 2 is dedicated to this; show a "notifications won't work" banner if `display-mode != standalone` |
 | Neon free tier compute hours exhausted (very heavy use) | Low | Low | One user can't exceed free tier; if needed, upgrade is $19/mo |
 | Service worker caches stale plan after edits | Medium | Medium | Cache-busting via Drizzle row `updated_at`; revalidate on visibility change |
-| Vercel Cron fires while user is on a flight (UTC offset mismatch) | Medium | Low | Store user timezone in `user_settings`; compute send-times in their TZ |
+| Scheduled ping fires while user is on a flight (UTC offset mismatch) | Medium | Low | Store user timezone in `user_settings`; compute send-times in their TZ |
 | User edits plan into an inconsistent state (e.g., 0 meals, 0 calories) | Low | Low | Zod validators in editors; "reset to defaults" action |
-| Lucia session table grows unbounded | Low | Low | Garbage-collect expired sessions in Vercel Cron weekly job |
+| Lucia session table grows unbounded | Low | Low | Garbage-collect expired sessions via a weekly scheduled ping (cron-job.org) |
 | Browser autofills wrong password and locks user out | Low | Medium | "Forgot password" is currently a manual CLI step — document it |
 
 ---
@@ -236,7 +236,7 @@ None. All dev on existing Mac + iPhone.
 - **D6** — Week tracking: dual-mode. Default auto from `plan_start_date`; user can override via Profile.
 - **D7** — Georgian-only UI in v0.1. i18n structure prepared.
 - **D8** — Mobile-only. Desktop and tablet not optimised; show "use on phone" prompt below 768px → above, OR just lock max-width and let it scale up. (Final pick during T1.3.)
-- **D9** — Push notifications via VAPID + Vercel Cron + `web-push`. No third-party push service (OneSignal, Firebase) — overkill for one user.
+- **D9** — Push notifications via VAPID + `web-push`, triggered by an external HTTP scheduler (cron-job.org) hitting `/api/cron/reminders` every 5 min with a `CRON_SECRET` bearer token. Vercel Cron rejected: Hobby tier limits crons to daily frequency, and `*/5 * * * *` would force Pro ($240/yr) — breaks the $0–12/yr budget. cron-job.org: free forever, 1-min minimum interval, unlimited executions, running since 2007. No third-party push service (OneSignal, Firebase) — overkill for one user.
 - **D10** — No co-author line in git commits (carries over from owner's preference).
 
 ---
@@ -341,7 +341,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 - **Dependencies**: T1.5
 - **Description**:
   - Create Vercel project linked to git repo.
-  - Add env vars in Vercel dashboard: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `AUTH_SECRET` (placeholder), `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `BLOB_READ_WRITE_TOKEN` (placeholder).
+  - Add env vars in Vercel dashboard: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, `AUTH_SECRET` (placeholder), `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `BLOB_READ_WRITE_TOKEN` (placeholder), `CRON_SECRET` (random 32-byte hex; gates `/api/cron/*` endpoints from public abuse).
   - Configure preview + production environments.
 - **Acceptance**: First `git push` triggers a Vercel preview deployment that boots successfully.
 
@@ -882,7 +882,7 @@ No further work in this phase. Phase 4 implements directly against these files.
 
 ### Phase 6 — PWA & Push Notifications
 
-**Goal:** Installable PWA, push subscription flow, scheduled meal/workout reminders via Vercel Cron.
+**Goal:** Installable PWA, push subscription flow, scheduled meal/workout reminders via an external HTTP scheduler (cron-job.org).
 **Estimate:** 1 week (~30h).
 
 #### T6.1: PWA assets (icons + splash)
@@ -952,18 +952,28 @@ No further work in this phase. Phase 4 implements directly against these files.
   - Payload shape: `{ title, body, icon, badge, url, tag }`.
 - **Acceptance**: Calling `sendPushToUser(ownerId, ...)` delivers a notification within 30s.
 
-#### T6.7: Vercel Cron — scheduled reminders
+#### T6.7: External-scheduler reminders (cron-job.org)
 
 - [ ] **Status**: TODO
 - **Complexity**: L
-- **Dependencies**: T6.6, T2.8
+- **Dependencies**: T6.6, T2.8, T1.8 (`CRON_SECRET` env var)
 - **Description**:
-  - `app/api/cron/reminders/route.ts` — fires every 5 min.
-  - Reads all users' upcoming meals + workouts in next 5 min window (timezone-aware).
-  - Sends push for each due item.
-  - `vercel.json` with cron schedule `*/5 * * * *`.
-  - Idempotent: tracks last-sent in `notification_log` (small table) to prevent duplicate firings.
-- **Acceptance**: A meal at 10:00 fires a notification at ~10:00 ± 5 min.
+  - `app/api/cron/reminders/route.ts` — `POST` handler invoked every 5 min by external scheduler.
+  - **Auth gate**: reject unless `Authorization: Bearer ${process.env.CRON_SECRET}` matches. Constant-time compare. 401 on mismatch; 405 on non-POST.
+  - Reads all users' upcoming meals + workouts in next 5 min window (timezone-aware, using user's stored TZ from `user_settings`).
+  - Sends push for each due item via `sendPushToUser` from T6.6.
+  - Idempotent: tracks last-sent in `notification_log` (small table: `user_id`, `kind`, `target_at`, `sent_at`) to prevent duplicate firings if the scheduler retries or double-pings.
+  - **Scheduler setup (cron-job.org)**:
+    - Free account, single cron job.
+    - URL: `https://<production-domain>/api/cron/reminders`
+    - Method: `POST`
+    - Schedule: `*/5 * * * *`
+    - Custom header: `Authorization: Bearer <CRON_SECRET>`
+    - Timeout: 30s (well above the ~2s budget for the handler).
+    - Enable email-on-failure notifications to owner.
+  - **Why not Vercel Cron**: Vercel Hobby limits crons to daily frequency since late 2024; `*/5 * * * *` requires Pro ($240/yr), which breaks the locked $0–12/yr budget (D9, §5).
+  - `vercel.json` cron config is **NOT** used.
+- **Acceptance**: A meal at 10:00 fires a notification at ~10:00 ± 5 min on production; replaying the cron-job.org request manually does not produce a duplicate notification (idempotency proven); a request without the correct bearer token returns 401.
 
 #### T6.8: Localised notification content
 
@@ -1023,7 +1033,7 @@ No further work in this phase. Phase 4 implements directly against these files.
 - **Dependencies**: T6.6, T6.7, T6.8, T1.11
 - **Description**:
   - Unit tests for the server-side push sender (T6.6): builds the correct VAPID payload, respects `ttl`, handles 410 Gone (drops dead subscription), retries 5xx with backoff.
-  - Tests for the Vercel Cron handler (T6.7): given a fixed `now` + a user's settings, returns the exact list of subscriptions due in the current 5-min window; respects per-meal toggles; skips muted users.
+  - Tests for the reminders cron handler (T6.7): given a fixed `now` + a user's settings, returns the exact list of subscriptions due in the current 5-min window; respects per-meal toggles; skips muted users; rejects requests with missing/invalid `CRON_SECRET` bearer.
   - Tests for localised content (T6.8): the title/body builder returns the expected `ka` strings for each notification kind (meal, workout, water).
   - Mock `web-push` library at the module boundary; do not actually network.
 - **Acceptance**: All three layers covered; mocked web-push receives the expected payloads byte-for-byte.
@@ -1140,7 +1150,7 @@ No further work in this phase. Phase 4 implements directly against these files.
 - **Description**:
   - Promote latest preview to production via `vercel --prod`.
   - Configure custom domain if owner wants one (optional).
-  - Verify cron jobs run on prod schedule.
+  - Verify cron-job.org pings hit prod `/api/cron/reminders` on schedule (check execution history in dashboard; first delivered notification end-to-end).
 - **Acceptance**: Owner can install PWA from production URL and complete an onboarding cycle.
 
 #### T7.11: Manual end-to-end smoke test on physical iPhone
