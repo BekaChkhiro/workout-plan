@@ -4,24 +4,7 @@ import { useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, XAxis } from "recharts";
 
 import type { WeightPoint } from "@/db/queries";
-
-const KA_DAYS_SHORT = ["კვი", "ორშ", "სამშ", "ოთხ", "ხუთ", "პარ", "შაბ"];
-const KA_MONTHS_SHORT = [
-  "იან",
-  "თებ",
-  "მარ",
-  "აპრ",
-  "მაი",
-  "ივნ",
-  "ივლ",
-  "აგვ",
-  "სექ",
-  "ოქტ",
-  "ნოე",
-  "დეკ",
-];
-
-type Range = "week" | "month" | "all";
+import { filterByRange, toChartData, type Range } from "@/lib/progress";
 
 const RANGE_LABELS: Record<Range, string> = {
   week: "კვირა",
@@ -29,32 +12,7 @@ const RANGE_LABELS: Record<Range, string> = {
   all: "ყველა",
 };
 
-function parseDateUTC(d: string): Date {
-  return new Date(`${d}T00:00:00Z`);
-}
-
-function filterByRange(entries: WeightPoint[], range: Range): WeightPoint[] {
-  if (range === "all" || entries.length === 0) return entries;
-  const days = range === "week" ? 7 : 30;
-  return entries.slice(-days);
-}
-
-function toChartData(entries: WeightPoint[], range: Range) {
-  return entries.map((e) => {
-    const d = parseDateUTC(e.date);
-    let label: string;
-    if (range === "week") {
-      label = KA_DAYS_SHORT[d.getUTCDay()] ?? "";
-    } else if (range === "month") {
-      label = `${d.getUTCDate()}/${d.getUTCMonth() + 1}`;
-    } else {
-      label = KA_MONTHS_SHORT[d.getUTCMonth()] ?? "";
-    }
-    return { label, kg: e.kg, date: e.date };
-  });
-}
-
-type ChartEntry = { label: string; kg: number; date: string };
+type ChartEntry = ReturnType<typeof toChartData>[number];
 
 function CustomDot(props: {
   cx: number | undefined;
