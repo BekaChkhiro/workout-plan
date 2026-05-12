@@ -2,11 +2,11 @@ import { config } from "dotenv";
 
 config({ path: ".env.local" });
 
-import { db } from "./index";
-import { defaultMealIngredients, defaultMeals, defaultMealSwaps } from "./schema";
-import { defaultMealsSeed } from "./seed/default-meals";
+async function main() {
+  const { db } = await import("./index");
+  const { defaultMealIngredients, defaultMeals, defaultMealSwaps } = await import("./schema");
+  const { defaultMealsSeed } = await import("./seed/default-meals");
 
-async function seedDefaultMeals() {
   await db.delete(defaultMeals);
 
   for (const meal of defaultMealsSeed) {
@@ -54,11 +54,7 @@ async function seedDefaultMeals() {
   console.log(`Seeded ${defaultMealsSeed.length} default meals.`);
 }
 
-async function seed() {
-  await seedDefaultMeals();
-}
-
-seed().catch((err) => {
+main().catch((err) => {
   console.error(err);
   process.exit(1);
 });
