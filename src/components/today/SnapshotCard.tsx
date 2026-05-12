@@ -1,4 +1,5 @@
 import { CalRing } from "./CalRing";
+import { WaterTracker } from "./WaterTracker";
 
 type Macro = {
   key: "P" | "N" | "F";
@@ -28,7 +29,6 @@ export function SnapshotCard({
   waterGlassesTotal,
   waterTargetL,
 }: SnapshotCardProps) {
-  const litersEaten = (waterGlasses / waterGlassesTotal) * waterTargetL;
   return (
     <section
       className="bg-surface relative z-1 mx-[18px] mt-2 rounded-[28px] px-[22px] pt-[22px] pb-[18px]"
@@ -65,32 +65,11 @@ export function SnapshotCard({
         </ul>
       </div>
 
-      <div className="border-surface-2 mt-[18px] flex items-center justify-between border-t pt-4">
-        <div>
-          <div className="text-ink-soft mb-0.5 text-[11px] font-semibold">💧 წყალი</div>
-          <div className="text-[17px] font-bold">
-            {litersEaten.toFixed(2)}{" "}
-            <span className="text-ink-soft text-[11px] font-medium">/ {waterTargetL} ლ</span>
-          </div>
-        </div>
-        <div className="flex gap-1">
-          {Array.from({ length: waterGlassesTotal }).map((_, i) => {
-            const filled = i < waterGlasses;
-            return (
-              <span
-                key={i}
-                aria-hidden
-                className="block w-4 rounded-t-lg rounded-b-[5px]"
-                style={{
-                  height: 22,
-                  background: filled ? "var(--gradient-water)" : "var(--color-surface-2)",
-                  border: filled ? "1px solid rgba(124,199,255,0.5)" : "1px solid #EADCF5",
-                }}
-              />
-            );
-          })}
-        </div>
-      </div>
+      <WaterTracker
+        initialGlasses={waterGlasses}
+        total={waterGlassesTotal}
+        targetL={waterTargetL}
+      />
     </section>
   );
 }
