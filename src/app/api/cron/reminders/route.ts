@@ -1,4 +1,3 @@
-import { createHmac, timingSafeEqual } from "crypto";
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
@@ -13,6 +12,7 @@ import {
   workouts,
 } from "@/db/schema";
 import { getCurrentMinutesInTimeZone, getTodayInTimeZone, parseTimeToMinutes } from "@/lib/date";
+import { getCurrentWeek, isAuthorized, localTimeAsUtc } from "@/lib/cron-helpers";
 import {
   buildMealNotification,
   buildWaterNotification,
@@ -21,50 +21,8 @@ import {
 } from "@/lib/notification-content";
 import { sendPushToUser } from "@/lib/push";
 
-// Hours (user-local) at which water reminders fire
 const WATER_REMINDER_HOURS = [8, 10, 12, 14, 16, 18, 20];
 const WEIGHT_REMINDER_HOUR = 8;
-
-// Compare two strings in constant time using HMAC digests (equal-length outputs).
-function isAuthorized(token: string, secret: string): boolean {
-  const key = Buffer.alloc(32);
-  const a = createHmac("sha256", key).update(token).digest();
-  const b = createHmac("sha256", key).update(secret).digest();
-  return timingSafeEqual(a, b);
-}
-
-// Convert a local date+time ("YYYY-MM-DD", "HH:MM") in a given IANA timezone to a UTC Date.
-function localTimeAsUtc(date: string, time: string, tz: string): Date {
-  // Treat the time as UTC initially, then measure the actual local offset at that instant.
-  const ref = new Date(`${date}T${time}:00Z`);
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: tz,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(ref);
-  const lh = Number(parts.find((p) => p.type === "hour")?.value ?? "0");
-  const lm = Number(parts.find((p) => p.type === "minute")?.value ?? "0");
-  const timeParts = time.split(":").map(Number);
-  const wh = timeParts[0] ?? 0;
-  const wm = timeParts[1] ?? 0;
-  const result = new Date(ref.getTime() - (lh * 60 + lm - wh * 60 - wm) * 60_000);
-  result.setSeconds(0, 0);
-  return result;
-}
-
-// Current week (1–4) for a user, honouring any manual override.
-function getCurrentWeek(
-  planStartDate: string,
-  currentWeekOverride: number | null,
-  todayStr: string,
-): number {
-  if (currentWeekOverride != null) return currentWeekOverride;
-  const start = new Date(`${planStartDate}T00:00:00Z`);
-  const today = new Date(`${todayStr}T00:00:00Z`);
-  const days = Math.floor((today.getTime() - start.getTime()) / 86_400_000);
-  return Math.min(Math.max(Math.floor(days / 7) + 1, 1), 4);
-}
 
 // JS weekday (0=Sun) → workout weekday (0=Mon, 6=Sun)
 const JS_TO_WORKOUT_WEEKDAY: Record<string, number> = {
