@@ -1,6 +1,7 @@
+import { MeasurementsTab } from "@/components/progress/MeasurementsTab";
 import { StatsTab } from "@/components/progress/StatsTab";
 import { WeightTab } from "@/components/progress/WeightTab";
-import { getAdherenceStats, getWeightHistory } from "@/db/queries";
+import { getAdherenceStats, getMeasurementHistory, getWeightHistory } from "@/db/queries";
 import { getOwnerUser } from "@/lib/auth";
 import { getTodayInTimeZone } from "@/lib/date";
 
@@ -28,8 +29,9 @@ export default async function ProgressPage({
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const from = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const [weightEntries, stats] = await Promise.all([
+  const [weightEntries, measurementEntries, stats] = await Promise.all([
     activeTab === "weight" ? getWeightHistory(owner.id, { from }) : Promise.resolve([]),
+    activeTab === "measurements" ? getMeasurementHistory(owner.id, { from }) : Promise.resolve([]),
     activeTab === "stats" ? getAdherenceStats(owner.id, from, today) : Promise.resolve(null),
   ]);
 
@@ -74,7 +76,9 @@ export default async function ProgressPage({
 
       <div className="relative z-1 flex flex-1 flex-col pt-4">
         {activeTab === "weight" && <WeightTab entries={weightEntries} today={today} />}
-        {activeTab === "measurements" && <MeasurementsPlaceholder />}
+        {activeTab === "measurements" && (
+          <MeasurementsTab entries={measurementEntries} today={today} />
+        )}
         {activeTab === "photos" && <PhotosPlaceholder />}
         {activeTab === "stats" && stats && <StatsTab stats={stats} />}
       </div>
@@ -102,16 +106,6 @@ function PlaceholderCard({
         <p className="text-body text-ink-soft">{subtitle}</p>
       </div>
     </div>
-  );
-}
-
-function MeasurementsPlaceholder() {
-  return (
-    <PlaceholderCard
-      emoji="📏"
-      title="სხეულის გაზომვები"
-      subtitle="T5.4-ში — წელი, მკლავი, ბარძაყი"
-    />
   );
 }
 

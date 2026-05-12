@@ -6,6 +6,7 @@ import {
   mealLogs,
   mealSwaps,
   meals,
+  measurementLogs,
   userSettings,
   users,
   waterLogs,
@@ -55,6 +56,13 @@ export type MealsDay = {
 };
 
 export type WeightPoint = { date: string; kg: number };
+
+export type MeasurementPoint = {
+  date: string;
+  waistCm: number | null;
+  armCm: number | null;
+  thighCm: number | null;
+};
 
 export type AdherenceStats = {
   meals: { completed: number; total: number; pct: number };
@@ -531,6 +539,63 @@ export async function getWeightHistory(
     .orderBy(asc(weightLogs.date));
 
   return rows.map((r) => ({ date: r.date, kg: Number(r.kg) }));
+}
+
+export async function logMeasurement(
+  userId: string,
+  date: string,
+  data: {
+    waistCm?: number | null | undefined;
+    armCm?: number | null | undefined;
+    thighCm?: number | null | undefined;
+  },
+): Promise<void> {
+  const toValue = (v: number | null | undefined) => (v != null ? v.toString() : null);
+
+  await db
+    .insert(measurementLogs)
+    .values({
+      userId,
+      date,
+      waistCm: toValue(data.waistCm),
+      armCm: toValue(data.armCm),
+      thighCm: toValue(data.thighCm),
+    })
+    .onConflictDoUpdate({
+      target: [measurementLogs.userId, measurementLogs.date],
+      set: {
+        waistCm: toValue(data.waistCm),
+        armCm: toValue(data.armCm),
+        thighCm: toValue(data.thighCm),
+      },
+    });
+}
+
+export async function getMeasurementHistory(
+  userId: string,
+  range: { from?: string; to?: string } = {},
+): Promise<MeasurementPoint[]> {
+  const filters = [eq(measurementLogs.userId, userId)];
+  if (range.from) filters.push(gte(measurementLogs.date, range.from));
+  if (range.to) filters.push(lte(measurementLogs.date, range.to));
+
+  const rows = await db
+    .select({
+      date: measurementLogs.date,
+      waistCm: measurementLogs.waistCm,
+      armCm: measurementLogs.armCm,
+      thighCm: measurementLogs.thighCm,
+    })
+    .from(measurementLogs)
+    .where(and(...filters))
+    .orderBy(asc(measurementLogs.date));
+
+  return rows.map((r) => ({
+    date: r.date,
+    waistCm: r.waistCm != null ? Number(r.waistCm) : null,
+    armCm: r.armCm != null ? Number(r.armCm) : null,
+    thighCm: r.thighCm != null ? Number(r.thighCm) : null,
+  }));
 }
 
 export async function updateMeal(
