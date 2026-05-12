@@ -1,7 +1,11 @@
-import { type DayType, getMealsByDayType, getOwnerUserId } from "@/db/queries";
+import { type DayType, getMealsByDayType } from "@/db/queries";
+import { getOwnerUser } from "@/lib/auth";
+import { getTodayInTimeZone } from "@/lib/date";
 
 import { DayTypeToggle } from "./_components/DayTypeToggle";
 import { MealsList } from "./_components/MealsList";
+
+export const dynamic = "force-dynamic";
 
 function parseDayType(value: string | string[] | undefined): DayType {
   return value === "rest" ? "rest" : "workout";
@@ -21,8 +25,9 @@ export default async function MealsPage({
   const { day } = await searchParams;
   const dayType = parseDayType(day);
 
-  const userId = await getOwnerUserId();
-  const data = await getMealsByDayType(userId, dayType);
+  const owner = await getOwnerUser();
+  const today = getTodayInTimeZone(owner.timezone);
+  const data = await getMealsByDayType(owner.id, dayType, today);
 
   const totalCalories = data.meals.reduce((acc, m) => acc + m.calories, 0);
   const totalsByKey: Record<"pG" | "nG" | "fG", number> = {

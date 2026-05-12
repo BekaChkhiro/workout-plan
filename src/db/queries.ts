@@ -231,7 +231,11 @@ export async function getOwnerUserId(): Promise<string> {
   return row.id;
 }
 
-export async function getMealsByDayType(userId: string, dayType: DayType): Promise<MealsDay> {
+export async function getMealsByDayType(
+  userId: string,
+  dayType: DayType,
+  date: string,
+): Promise<MealsDay> {
   const [mealRows, settingsRows] = await Promise.all([
     db
       .select()
@@ -258,7 +262,7 @@ export async function getMealsByDayType(userId: string, dayType: DayType): Promi
 
   const mealIds = mealRows.map((m) => m.id);
 
-  const [ingredientRows, swapRows] = await Promise.all([
+  const [ingredientRows, swapRows, mealLogRows] = await Promise.all([
     mealIds.length > 0
       ? db
           .select()
@@ -273,10 +277,23 @@ export async function getMealsByDayType(userId: string, dayType: DayType): Promi
           .where(inArray(mealSwaps.mealId, mealIds))
           .orderBy(asc(mealSwaps.sortOrder))
       : Promise.resolve<MealSwap[]>([]),
+    mealIds.length > 0
+      ? db
+          .select({ mealId: mealLogs.mealId })
+          .from(mealLogs)
+          .where(
+            and(
+              eq(mealLogs.userId, userId),
+              eq(mealLogs.date, date),
+              inArray(mealLogs.mealId, mealIds),
+            ),
+          )
+      : Promise.resolve<{ mealId: string }[]>([]),
   ]);
 
   const ingredientsByMeal = groupBy(ingredientRows, (i) => i.mealId);
   const swapsByMeal = groupBy(swapRows, (s) => s.mealId);
+  const completedMealIds = new Set(mealLogRows.map((r) => r.mealId));
 
   return {
     dayType,
@@ -284,7 +301,7 @@ export async function getMealsByDayType(userId: string, dayType: DayType): Promi
       ...m,
       ingredients: ingredientsByMeal.get(m.id) ?? [],
       swaps: swapsByMeal.get(m.id) ?? [],
-      completed: false,
+      completed: completedMealIds.has(m.id),
     })),
     targets: {
       calories: settings.calorieTarget,
