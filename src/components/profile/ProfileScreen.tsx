@@ -449,6 +449,17 @@ function NotificationsSection({ settings }: { settings: UserSettings }) {
       >
         💡 iOS-ზე — დაამატე ეკრანზე ხატულა, რომ შეტყობინებები მუშაობდეს
       </div>
+
+      <SettingsCard>
+        <SettingRow
+          label="📱 Onboarding-ის ხელახლა გაშვება"
+          right={<ChevronRight color="#C9A8E8" />}
+          onClick={() => {
+            localStorage.removeItem("fitplan_onb_done");
+            window.dispatchEvent(new Event("fitplan:onboarding-restart"));
+          }}
+        />
+      </SettingsCard>
     </>
   );
 }

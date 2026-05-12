@@ -1,8 +1,17 @@
 import type { ReactNode } from "react";
+import dynamic from "next/dynamic";
 
 import { BgBlobs } from "@/components/BgBlobs";
 import { BottomNav } from "@/components/BottomNav";
 import { MobileShell } from "@/components/MobileShell";
+
+const OnboardingOverlay = dynamic(
+  () =>
+    import("@/components/onboarding/OnboardingOverlay").then((m) => ({
+      default: m.OnboardingOverlay,
+    })),
+  { ssr: false },
+);
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   return (
@@ -15,6 +24,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {children}
       </main>
       <BottomNav />
+      <OnboardingOverlay />
     </MobileShell>
   );
 }
