@@ -1,3 +1,4 @@
+import { hash, verify } from "@node-rs/argon2";
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
@@ -20,4 +21,12 @@ export async function getOwnerUser(): Promise<User> {
 export async function getOwnerUserId(): Promise<string> {
   const owner = await getOwnerUser();
   return owner.id;
+}
+
+export async function hashPassword(password: string): Promise<string> {
+  return hash(password, { memoryCost: 19456, timeCost: 2, outputLen: 32, parallelism: 1 });
+}
+
+export async function verifyPassword(hashed: string, password: string): Promise<boolean> {
+  return verify(hashed, password);
 }
