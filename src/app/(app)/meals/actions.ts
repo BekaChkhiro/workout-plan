@@ -2,9 +2,25 @@
 
 import { revalidatePath } from "next/cache";
 
-import { logMealComplete, unlogMealComplete } from "@/db/queries";
+import { logMealComplete, unlogMealComplete, updateMeal } from "@/db/queries";
 import { getOwnerUser } from "@/lib/auth";
 import { getTodayInTimeZone } from "@/lib/date";
+
+import { type MealFormValues, mealFormSchema } from "./meal-schema";
+
+export type { MealFormValues } from "./meal-schema";
+
+export async function updateMealAction(
+  mealId: string,
+  data: MealFormValues,
+): Promise<{ ok: true }> {
+  const owner = await getOwnerUser();
+  const parsed = mealFormSchema.parse(data);
+  await updateMeal(owner.id, mealId, parsed);
+  revalidatePath("/meals");
+  revalidatePath("/");
+  return { ok: true };
+}
 
 export async function toggleMealCompleteAction(
   mealId: string,

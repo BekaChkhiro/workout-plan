@@ -506,6 +506,67 @@ export async function getWeightHistory(
   return rows.map((r) => ({ date: r.date, kg: Number(r.kg) }));
 }
 
+export async function updateMeal(
+  userId: string,
+  mealId: string,
+  data: {
+    time: string;
+    name: string;
+    summary: string;
+    dayType: "workout" | "rest";
+    calories: number;
+    pG: number;
+    nG: number;
+    fG: number;
+    ingredients: { name: string; amount: string }[];
+    swaps: { name: string }[];
+  },
+): Promise<void> {
+  const existing = await db
+    .select({ id: meals.id })
+    .from(meals)
+    .where(and(eq(meals.id, mealId), eq(meals.userId, userId)))
+    .limit(1);
+  if (existing.length === 0) throw new Error("meal not found");
+
+  await db
+    .update(meals)
+    .set({
+      time: data.time,
+      name: data.name,
+      summary: data.summary,
+      dayType: data.dayType,
+      calories: data.calories,
+      pG: data.pG,
+      nG: data.nG,
+      fG: data.fG,
+    })
+    .where(eq(meals.id, mealId));
+
+  await db.delete(mealIngredients).where(eq(mealIngredients.mealId, mealId));
+  if (data.ingredients.length > 0) {
+    await db.insert(mealIngredients).values(
+      data.ingredients.map((ing, i) => ({
+        mealId,
+        name: ing.name,
+        amount: ing.amount,
+        sortOrder: i,
+      })),
+    );
+  }
+
+  await db.delete(mealSwaps).where(eq(mealSwaps.mealId, mealId));
+  if (data.swaps.length > 0) {
+    await db.insert(mealSwaps).values(
+      data.swaps.map((s, i) => ({
+        mealId,
+        name: s.name,
+        sortOrder: i,
+      })),
+    );
+  }
+}
+
 export async function getAdherenceStats(
   userId: string,
   fromDate: string,
