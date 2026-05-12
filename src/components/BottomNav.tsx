@@ -31,7 +31,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="მთავარი ნავიგაცია"
-      className="pointer-events-none absolute right-0 bottom-0 left-0 z-30 px-3 pt-2.5"
+      className="pointer-events-none fixed inset-x-0 bottom-0 z-30 mx-auto w-full max-w-[480px] px-3 pt-2.5"
       style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 16px)" }}
     >
       <ul
