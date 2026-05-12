@@ -3,6 +3,7 @@ export * from "./users";
 export * from "./sessions";
 export * from "./settings";
 export * from "./meals";
+export * from "./default-meals";
 export * from "./workouts";
 export * from "./logs";
 export * from "./progress";
