@@ -524,7 +524,7 @@ Each task: status, complexity (S/M/L/XL — work hours roughly 2/6/16/32+), depe
 
 #### T2.10: Query helper integration tests
 
-- [ ] **Status**: TODO
+- [x] **Status**: DONE
 - **Complexity**: M
 - **Dependencies**: T2.8, T1.11
 - **Description**:
