@@ -7,6 +7,7 @@ import { useState } from "react";
 import type { MealWithDetails } from "@/db/queries";
 
 import { toggleMealCompleteAction } from "../actions";
+import { MealEditorSheet } from "./MealEditorSheet";
 
 type MealSlot = {
   bg: string;
@@ -176,6 +177,7 @@ export function MealsList({ meals }: { meals: MealWithDetails[] }) {
   const [optimisticToggles, setOptimisticToggles] = useState<Record<string, boolean>>({});
   const [confettiMealId, setConfettiMealId] = useState<string | null>(null);
   const [confettiKey, setConfettiKey] = useState(0);
+  const [editingMeal, setEditingMeal] = useState<MealWithDetails | null>(null);
 
   const toggleMutation = useMutation({
     mutationFn: ({ mealId, completed }: { mealId: string; completed: boolean }) =>
@@ -221,6 +223,7 @@ export function MealsList({ meals }: { meals: MealWithDetails[] }) {
   }
 
   return (
+    <>
     <LayoutGroup>
       <ul className="relative z-1 flex flex-col gap-3 px-[18px]">
         {meals.map((meal, idx) => {
@@ -460,6 +463,16 @@ export function MealsList({ meals }: { meals: MealWithDetails[] }) {
                           </div>
                         </section>
                       ) : null}
+
+                      <div className="mt-4 flex justify-end border-t border-dashed border-[#EADCF5] pt-3.5">
+                        <button
+                          type="button"
+                          onClick={() => setEditingMeal(meal)}
+                          className="flex items-center gap-1.5 rounded-full bg-[#F4ECFA] px-4 py-2 text-[12px] font-bold text-[#5A3A8B] outline-none focus-visible:ring-2 focus-visible:ring-[#C9A8E8]"
+                        >
+                          ✏️ რედაქტირება
+                        </button>
+                      </div>
                     </div>
                   </motion.div>
                 ) : null}
@@ -469,5 +482,15 @@ export function MealsList({ meals }: { meals: MealWithDetails[] }) {
         })}
       </ul>
     </LayoutGroup>
+    {editingMeal !== null && (
+      <MealEditorSheet
+        meal={editingMeal}
+        open={editingMeal !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditingMeal(null);
+        }}
+      />
+    )}
+    </>
   );
 }
