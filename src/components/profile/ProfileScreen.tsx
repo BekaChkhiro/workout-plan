@@ -473,7 +473,7 @@ function NotificationsSection({ settings }: { settings: UserSettings }) {
         <SettingRow
           label="🔔 ტესტ-შეტყობინება გაგზავნა"
           right={<ChevronRight color="#C9A8E8" />}
-          onClick={testSending ? undefined : sendTestPush}
+          {...(!testSending && { onClick: sendTestPush })}
         />
         <SettingRow
           label="📱 Onboarding-ის ხელახლა გაშვება"
