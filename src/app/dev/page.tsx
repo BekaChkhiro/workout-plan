@@ -8,6 +8,12 @@ type DevRoute = {
 
 const ROUTES: DevRoute[] = [
   {
+    href: "/dev/push-test",
+    title: "Push notification test",
+    description:
+      "Fire test notifications to the owner account. Open on a subscribed device to verify delivery and deep-links.",
+  },
+  {
     href: "/dev/tokens",
     title: "Design tokens",
     description: "Colors, gradients, typography, radii, shadows, motion — Style C source of truth.",
