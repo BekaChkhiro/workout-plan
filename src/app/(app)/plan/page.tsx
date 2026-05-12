@@ -1,14 +1,14 @@
 import { PlanScreen } from "@/components/plan/PlanScreen";
 import { getFourWeekPlan } from "@/db/queries";
-import { getCurrentUserId } from "@/lib/current-user";
+import { getOwnerUser } from "@/lib/auth";
+import { getTodayInTimeZone } from "@/lib/date";
 
-function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
-}
+export const dynamic = "force-dynamic";
 
 export default async function PlanPage() {
-  const userId = await getCurrentUserId();
-  const plan = await getFourWeekPlan(userId, todayISO());
+  const owner = await getOwnerUser();
+  const date = getTodayInTimeZone(owner.timezone);
+  const plan = await getFourWeekPlan(owner.id, date);
 
   return <PlanScreen plan={plan} />;
 }
