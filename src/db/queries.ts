@@ -16,6 +16,8 @@ import {
   type Meal,
   type MealIngredient,
   type MealSwap,
+  type NewUserSettings,
+  type UserSettings,
   type Workout,
 } from "./schema";
 
@@ -844,4 +846,17 @@ export async function getWeekModeSetting(
   const anchor = await getUserPlanAnchor(userId);
   const { week: todayAutoWeek } = resolveWeekAndWeekday(anchor.planStartDate, null, date);
   return { currentWeekOverride: anchor.currentWeekOverride, todayAutoWeek };
+}
+
+export async function getUserSettings(userId: string): Promise<UserSettings> {
+  const rows = await db.select().from(userSettings).where(eq(userSettings.userId, userId)).limit(1);
+  if (!rows[0]) throw new Error(`No settings for user ${userId}`);
+  return rows[0];
+}
+
+export async function updateUserSettings(
+  userId: string,
+  data: Partial<Omit<NewUserSettings, "userId">>,
+): Promise<void> {
+  await db.update(userSettings).set(data).where(eq(userSettings.userId, userId));
 }
