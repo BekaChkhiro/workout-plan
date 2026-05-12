@@ -8,3 +8,4 @@ export * from "./workouts";
 export * from "./logs";
 export * from "./progress";
 export * from "./push";
+export * from "./notification-log";
