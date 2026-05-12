@@ -14,6 +14,7 @@ import type { UserSettings } from "@/db/schema";
 import type { User } from "@/db/schema";
 import type { WeightPoint } from "@/db/queries";
 
+import { useUIStore } from "@/stores/ui-store";
 import { DailyTargetsSheet } from "./DailyTargetsSheet";
 import { GoalSheet } from "./GoalSheet";
 
@@ -407,6 +408,24 @@ function NotificationsSection({ settings }: { settings: UserSettings }) {
     notifWeight: settings.notifWeight,
   });
   const [isPending, startTransition] = useTransition();
+  const showToast = useUIStore((s) => s.showToast);
+  const [testSending, setTestSending] = useState(false);
+
+  const sendTestPush = async () => {
+    setTestSending(true);
+    try {
+      const res = await fetch("/api/push/test", { method: "POST" });
+      if (res.ok) {
+        showToast("🔔 ტესტ-შეტყობინება გაიგზავნა!", "success");
+      } else {
+        showToast("შეცდომა — შეამოწმე push სუბსქრიფცია", "error");
+      }
+    } catch {
+      showToast("ქსელის შეცდომა", "error");
+    } finally {
+      setTestSending(false);
+    }
+  };
 
   const toggle = (key: NotifKey) => {
     startTransition(async () => {
@@ -451,6 +470,11 @@ function NotificationsSection({ settings }: { settings: UserSettings }) {
       </div>
 
       <SettingsCard>
+        <SettingRow
+          label="🔔 ტესტ-შეტყობინება გაგზავნა"
+          right={<ChevronRight color="#C9A8E8" />}
+          onClick={testSending ? undefined : sendTestPush}
+        />
         <SettingRow
           label="📱 Onboarding-ის ხელახლა გაშვება"
           right={<ChevronRight color="#C9A8E8" />}

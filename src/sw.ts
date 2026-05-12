@@ -184,40 +184,42 @@ const sw = new Serwist({
   },
 });
 
+type PushData = {
+  title?: string;
+  body?: string;
+  icon?: string;
+  badge?: string;
+  tag?: string;
+  url?: string;
+};
+
 // Show incoming push as a native notification
 self.addEventListener("push", (event) => {
-  if (!event.data) return;
-  type RawPayload = {
-    title?: string;
-    body?: string;
-    icon?: string;
-    badge?: string;
-    url?: string;
-    tag?: string;
-  };
-  let payload: RawPayload = {};
+  let data: PushData = {};
   try {
-    payload = event.data.json() as RawPayload;
+    data = (event as PushEvent).data?.json() as PushData;
   } catch {
-    payload = { title: "Workout Plan", body: event.data.text() };
+    data = { body: (event as PushEvent).data?.text() };
   }
+
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? "Workout Plan", {
-      body: payload.body,
-      icon: payload.icon ?? "/icons/pwa-icon-192.png",
-      tag: payload.tag,
-      data: { url: payload.url ?? "/" },
+    self.registration.showNotification(data.title ?? "Fit Plan", {
+      body: data.body,
+      icon: data.icon ?? "/icons/pwa-icon-192.png",
+      badge: data.badge ?? "/icons/pwa-icon-192.png",
+      tag: data.tag,
+      data: { url: data.url ?? "/" },
     }),
   );
 });
 
 // Navigate to the deep-link URL embedded in the notification
 self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-  const url: string = (event.notification.data as { url?: string } | null)?.url ?? "/";
+  (event as NotificationEvent).notification.close();
+  const url: string = (event as NotificationEvent).notification.data?.url ?? "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
-      const existing = windowClients[0];
+      const existing = windowClients.find((c) => c.url.includes(self.location.origin));
       if (existing && "navigate" in existing) {
         return (existing as WindowClient).navigate(url).then((wc) => wc?.focus());
       }
@@ -227,43 +229,3 @@ self.addEventListener("notificationclick", (event) => {
 });
 
 sw.addEventListeners();
-
-type PushData = {
-  title: string;
-  body?: string;
-  icon?: string;
-  badge?: string;
-  tag?: string;
-  url?: string;
-};
-
-self.addEventListener("push", (event) => {
-  let data: PushData = { title: "Fit Plan" };
-  try {
-    data = (event as PushEvent).data?.json() as PushData;
-  } catch {
-    /* ignore malformed payload */
-  }
-
-  const opts: NotificationOptions = {
-    icon: data.icon ?? "/icons/icon-192x192.png",
-    badge: data.badge ?? "/icons/icon-72x72.png",
-    data: { url: data.url ?? "/" },
-  };
-  if (data.body !== undefined) opts.body = data.body;
-  if (data.tag !== undefined) opts.tag = data.tag;
-
-  event.waitUntil(self.registration.showNotification(data.title, opts));
-});
-
-self.addEventListener("notificationclick", (event) => {
-  (event as NotificationEvent).notification.close();
-  const url: string = (event as NotificationEvent).notification.data?.url ?? "/";
-  event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
-      const existing = clientList.find((c) => c.url.includes(url));
-      if (existing) return existing.focus();
-      return self.clients.openWindow(url);
-    }),
-  );
-});

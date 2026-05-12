@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePushSubscription } from "@/hooks/usePushSubscription";
+import { useUIStore } from "@/stores/ui-store";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -556,10 +557,12 @@ function AddToHomeStep({ stepIdx, stepCount, onNext }: StepProps) {
 
 function NotificationsStep({ stepIdx, stepCount, onNext, onSkip }: StepProps) {
   const { subscribe, loading, permission } = usePushSubscription();
+  const showToast = useUIStore((s) => s.showToast);
 
   const handleEnable = async () => {
     try {
       await subscribe();
+      showToast("🔔 შეტყობინებები ჩართულია!", "success");
     } catch {
       // permission denied or unsupported — advance anyway
     } finally {
