@@ -7,6 +7,7 @@ import {
   mealSwaps,
   meals,
   userSettings,
+  users,
   waterLogs,
   weightLogs,
   workoutLogs,
@@ -37,6 +38,20 @@ export type TodayPlan = {
   workout: Workout | null;
   workoutCompleted: boolean;
   meals: MealWithDetails[];
+};
+
+export type MealsDayTargets = {
+  calories: number;
+  pG: number;
+  nG: number;
+  fG: number;
+  waterL: number;
+};
+
+export type MealsDay = {
+  dayType: DayType;
+  meals: MealWithDetails[];
+  targets: MealsDayTargets;
 };
 
 export type WeightPoint = { date: string; kg: number };
@@ -205,6 +220,80 @@ export async function getDayTypeForUser(userId: string, date: string): Promise<D
     .limit(1);
 
   return dayTypeFromWorkout(rows[0]);
+}
+
+export async function getOwnerUserId(): Promise<string> {
+  const rows = await db.select({ id: users.id }).from(users).orderBy(asc(users.createdAt)).limit(1);
+  const row = rows[0];
+  if (!row) {
+    throw new Error("No user found — run `pnpm seed:owner` to create the owner account.");
+  }
+  return row.id;
+}
+
+export async function getMealsByDayType(userId: string, dayType: DayType): Promise<MealsDay> {
+  const [mealRows, settingsRows] = await Promise.all([
+    db
+      .select()
+      .from(meals)
+      .where(and(eq(meals.userId, userId), eq(meals.dayType, dayType)))
+      .orderBy(asc(meals.sortOrder)),
+    db
+      .select({
+        calorieTarget: userSettings.calorieTarget,
+        pTarget: userSettings.pTarget,
+        nTarget: userSettings.nTarget,
+        fTarget: userSettings.fTarget,
+        waterTargetL: userSettings.waterTargetL,
+      })
+      .from(userSettings)
+      .where(eq(userSettings.userId, userId))
+      .limit(1),
+  ]);
+
+  const settings = settingsRows[0];
+  if (!settings) {
+    throw new Error(`No user_settings row for user ${userId}`);
+  }
+
+  const mealIds = mealRows.map((m) => m.id);
+
+  const [ingredientRows, swapRows] = await Promise.all([
+    mealIds.length > 0
+      ? db
+          .select()
+          .from(mealIngredients)
+          .where(inArray(mealIngredients.mealId, mealIds))
+          .orderBy(asc(mealIngredients.sortOrder))
+      : Promise.resolve<MealIngredient[]>([]),
+    mealIds.length > 0
+      ? db
+          .select()
+          .from(mealSwaps)
+          .where(inArray(mealSwaps.mealId, mealIds))
+          .orderBy(asc(mealSwaps.sortOrder))
+      : Promise.resolve<MealSwap[]>([]),
+  ]);
+
+  const ingredientsByMeal = groupBy(ingredientRows, (i) => i.mealId);
+  const swapsByMeal = groupBy(swapRows, (s) => s.mealId);
+
+  return {
+    dayType,
+    meals: mealRows.map((m) => ({
+      ...m,
+      ingredients: ingredientsByMeal.get(m.id) ?? [],
+      swaps: swapsByMeal.get(m.id) ?? [],
+      completed: false,
+    })),
+    targets: {
+      calories: settings.calorieTarget,
+      pG: settings.pTarget,
+      nG: settings.nTarget,
+      fG: settings.fTarget,
+      waterL: Number(settings.waterTargetL),
+    },
+  };
 }
 
 export async function getWeekProgression(userId: string, week: number): Promise<Workout[]> {
