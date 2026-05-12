@@ -29,11 +29,12 @@ export default async function MealsPage({
   const today = getTodayInTimeZone(owner.timezone);
   const data = await getMealsByDayType(owner.id, dayType, today);
 
-  const totalCalories = data.meals.reduce((acc, m) => acc + m.calories, 0);
-  const totalsByKey: Record<"pG" | "nG" | "fG", number> = {
-    pG: data.meals.reduce((acc, m) => acc + m.pG, 0),
-    nG: data.meals.reduce((acc, m) => acc + m.nG, 0),
-    fG: data.meals.reduce((acc, m) => acc + m.fG, 0),
+  const completed = data.meals.filter((m) => m.completed);
+  const consumedCalories = completed.reduce((acc, m) => acc + m.calories, 0);
+  const consumedByKey: Record<"pG" | "nG" | "fG", number> = {
+    pG: completed.reduce((acc, m) => acc + m.pG, 0),
+    nG: completed.reduce((acc, m) => acc + m.nG, 0),
+    fG: completed.reduce((acc, m) => acc + m.fG, 0),
   };
   const lastMealTime = data.meals.length > 0 ? data.meals[data.meals.length - 1]!.time : null;
 
@@ -71,11 +72,11 @@ export default async function MealsPage({
         aria-label="დღის შემაჯამება"
       >
         <div className="flex items-center gap-[18px]">
-          <DayCaloriesRing total={totalCalories} target={data.targets.calories} />
+          <DayCaloriesRing total={consumedCalories} target={data.targets.calories} />
           <div className="flex flex-1 flex-col gap-2.5">
             {MACRO_TARGETS.map((m) => {
               const target = data.targets[m.key];
-              const current = totalsByKey[m.key];
+              const current = consumedByKey[m.key];
               const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
               return (
                 <div key={m.key}>
@@ -202,8 +203,8 @@ function DayCaloriesRing({ total, target }: { total: number; target: number }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <div className="text-ink text-[24px] leading-none font-extrabold">{target}</div>
-        <div className="text-ink-soft mt-1 text-[10px] font-semibold">კკალ სამიზნე</div>
+        <div className="text-ink text-[22px] leading-none font-extrabold">{total}</div>
+        <div className="text-ink-soft mt-[3px] text-[9.5px] font-semibold">/ {target} კკალ</div>
       </div>
     </div>
   );
