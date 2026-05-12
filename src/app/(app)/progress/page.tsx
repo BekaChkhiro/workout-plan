@@ -1,9 +1,11 @@
 import { MeasurementsTab } from "@/components/progress/MeasurementsTab";
+import { PhotosTab } from "@/components/progress/PhotosTab";
 import { StatsTab } from "@/components/progress/StatsTab";
 import { WeightTab } from "@/components/progress/WeightTab";
 import {
   getAdherenceStats,
   getMeasurementHistory,
+  getProgressPhotos,
   getTargetWeightKg,
   getWeightHistory,
 } from "@/db/queries";
@@ -34,14 +36,16 @@ export default async function ProgressPage({
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   const statsFrom = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const [weightEntries, measurementEntries, targetWeightKg, stats] = await Promise.all([
-    activeTab === "weight" ? getWeightHistory(owner.id) : Promise.resolve([]),
-    activeTab === "measurements"
-      ? getMeasurementHistory(owner.id, { from: statsFrom })
-      : Promise.resolve([]),
-    activeTab === "weight" ? getTargetWeightKg(owner.id) : Promise.resolve(null),
-    activeTab === "stats" ? getAdherenceStats(owner.id, statsFrom, today) : Promise.resolve(null),
-  ]);
+  const [weightEntries, measurementEntries, targetWeightKg, stats, photoEntries] =
+    await Promise.all([
+      activeTab === "weight" ? getWeightHistory(owner.id) : Promise.resolve([]),
+      activeTab === "measurements"
+        ? getMeasurementHistory(owner.id, { from: statsFrom })
+        : Promise.resolve([]),
+      activeTab === "weight" ? getTargetWeightKg(owner.id) : Promise.resolve(null),
+      activeTab === "stats" ? getAdherenceStats(owner.id, statsFrom, today) : Promise.resolve(null),
+      activeTab === "photos" ? getProgressPhotos(owner.id) : Promise.resolve([]),
+    ]);
 
   return (
     <>
@@ -89,42 +93,9 @@ export default async function ProgressPage({
         {activeTab === "measurements" && (
           <MeasurementsTab entries={measurementEntries} today={today} />
         )}
-        {activeTab === "photos" && <PhotosPlaceholder />}
+        {activeTab === "photos" && <PhotosTab photos={photoEntries} />}
         {activeTab === "stats" && stats && <StatsTab stats={stats} />}
       </div>
     </>
-  );
-}
-
-function PlaceholderCard({
-  emoji,
-  title,
-  subtitle,
-}: {
-  emoji: string;
-  title: string;
-  subtitle: string;
-}) {
-  return (
-    <div className="px-[18px]">
-      <div
-        className="flex flex-col items-center gap-3 rounded-[var(--radius-lg)] px-6 py-10 text-center"
-        style={{ background: "#FFFFFF", boxShadow: "var(--shadow-md)" }}
-      >
-        <span className="text-5xl">{emoji}</span>
-        <p className="text-h2 text-ink font-bold">{title}</p>
-        <p className="text-body text-ink-soft">{subtitle}</p>
-      </div>
-    </div>
-  );
-}
-
-function PhotosPlaceholder() {
-  return (
-    <PlaceholderCard
-      emoji="📸"
-      title="პროგრესის ფოტოები"
-      subtitle="T5.6-ში — ფოტოების ატვირთვა და გალერეა"
-    />
   );
 }

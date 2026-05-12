@@ -1,4 +1,4 @@
-import { and, asc, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 
 import { db } from "./index";
 import {
@@ -7,6 +7,7 @@ import {
   mealSwaps,
   meals,
   measurementLogs,
+  progressPhotos,
   userSettings,
   users,
   waterLogs,
@@ -844,4 +845,37 @@ export async function getWeekModeSetting(
   const anchor = await getUserPlanAnchor(userId);
   const { week: todayAutoWeek } = resolveWeekAndWeekday(anchor.planStartDate, null, date);
   return { currentWeekOverride: anchor.currentWeekOverride, todayAutoWeek };
+}
+
+export type ProgressPhotoEntry = {
+  id: string;
+  week: number;
+  takenAt: Date;
+  blobUrl: string;
+};
+
+export async function getProgressPhotos(userId: string): Promise<ProgressPhotoEntry[]> {
+  return db
+    .select({
+      id: progressPhotos.id,
+      week: progressPhotos.week,
+      takenAt: progressPhotos.takenAt,
+      blobUrl: progressPhotos.blobUrl,
+    })
+    .from(progressPhotos)
+    .where(eq(progressPhotos.userId, userId))
+    .orderBy(desc(progressPhotos.takenAt));
+}
+
+export async function addProgressPhoto(
+  userId: string,
+  week: number,
+  blobUrl: string,
+): Promise<void> {
+  await db.insert(progressPhotos).values({ userId, week, blobUrl });
+}
+
+export async function getCurrentPlanWeek(userId: string, date: string): Promise<number> {
+  const anchor = await getUserPlanAnchor(userId);
+  return resolveWeekAndWeekday(anchor.planStartDate, anchor.currentWeekOverride, date).week;
 }
