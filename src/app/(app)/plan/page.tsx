@@ -1,8 +1,14 @@
-export default function PlanPage() {
-  return (
-    <section className="flex flex-1 flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-display text-ink font-bold">გეგმა</h1>
-      <p className="text-body text-ink-soft mt-2">4-კვირიანი ბადე — T4.7-ში</p>
-    </section>
-  );
+import { PlanScreen } from "@/components/plan/PlanScreen";
+import { getFourWeekPlan } from "@/db/queries";
+import { getCurrentUserId } from "@/lib/current-user";
+
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export default async function PlanPage() {
+  const userId = await getCurrentUserId();
+  const plan = await getFourWeekPlan(userId, todayISO());
+
+  return <PlanScreen plan={plan} />;
 }
