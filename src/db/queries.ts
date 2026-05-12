@@ -591,6 +591,17 @@ export async function updateMeal(
   }
 }
 
+export async function reorderMeals(userId: string, orderedIds: string[]): Promise<void> {
+  await Promise.all(
+    orderedIds.map((id, index) =>
+      db
+        .update(meals)
+        .set({ sortOrder: index })
+        .where(and(eq(meals.id, id), eq(meals.userId, userId))),
+    ),
+  );
+}
+
 export async function getAdherenceStats(
   userId: string,
   fromDate: string,
