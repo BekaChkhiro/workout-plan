@@ -4,6 +4,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { useMemo, useState } from "react";
 
 import type { FourWeekPlan, PlanDay } from "@/db/queries";
+import type { Workout } from "@/db/schema";
+import { WorkoutEditorSheet } from "./WorkoutEditorSheet";
 
 const WEEKDAY_LABELS_KA = [
   "ორშაბათი",
@@ -58,9 +60,12 @@ type PlanScreenProps = {
   plan: FourWeekPlan;
 };
 
+type EditTarget = { workout: Workout; weekLabel: string };
+
 export function PlanScreen({ plan }: PlanScreenProps) {
   const initialWeek = (plan.currentWeekOverride ?? plan.todayAutoWeek) as 1 | 2 | 3 | 4;
   const [selectedWeek, setSelectedWeek] = useState<1 | 2 | 3 | 4>(initialWeek);
+  const [editTarget, setEditTarget] = useState<EditTarget | null>(null);
 
   const week = useMemo(
     () => plan.weeks.find((w) => w.week === selectedWeek) ?? plan.weeks[0]!,
@@ -69,23 +74,18 @@ export function PlanScreen({ plan }: PlanScreenProps) {
 
   return (
     <div className="relative flex flex-1 flex-col">
+      {editTarget && (
+        <WorkoutEditorSheet
+          workout={editTarget.workout}
+          weekLabel={editTarget.weekLabel}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+
       <header className="relative z-1 flex items-center justify-between px-[22px] pt-2 pb-3.5">
         <h1 className="text-display text-ink font-bold">
           გეგმა <span className="text-[22px]">📅</span>
         </h1>
-        <button
-          type="button"
-          className="text-[12px] font-bold text-[#5A3A8B]"
-          style={{
-            background: "rgba(255,255,255,0.65)",
-            border: "1.5px solid #C9A8E8",
-            padding: "7px 13px",
-            borderRadius: 999,
-            backdropFilter: "blur(8px)",
-          }}
-        >
-          ✨ რედაქტირება
-        </button>
       </header>
 
       <nav aria-label="კვირები" className="relative z-1 px-[18px]">
@@ -146,7 +146,18 @@ export function PlanScreen({ plan }: PlanScreenProps) {
           <ul className="relative z-1 flex flex-col gap-2.5 px-[18px]">
             {week.days.map((day) => (
               <li key={`${day.week}:${day.weekday}`}>
-                <DayCard day={day} />
+                <DayCard
+                  day={day}
+                  {...(day.workout && day.workout.type !== "rest"
+                    ? {
+                        onEdit: () =>
+                          setEditTarget({
+                            workout: day.workout!,
+                            weekLabel: `${WEEKDAY_LABELS_KA[day.weekday]} · კვირა ${day.week}`,
+                          }),
+                      }
+                    : {})}
+                />
               </li>
             ))}
           </ul>
@@ -273,7 +284,7 @@ function SummaryChip({ children }: { children: React.ReactNode }) {
   );
 }
 
-function DayCard({ day }: { day: PlanDay }) {
+function DayCard({ day, onEdit }: { day: PlanDay; onEdit?: () => void }) {
   const ka = WEEKDAY_LABELS_KA[day.weekday];
   const w = day.workout;
   const isDone = day.state === "done";
@@ -414,6 +425,17 @@ function DayCard({ day }: { day: PlanDay }) {
             </svg>
             მოლოდინში
           </span>
+        )}
+        {onEdit && (
+          <button
+            type="button"
+            aria-label="ვარჯიშის რედაქტირება"
+            onClick={onEdit}
+            className="flex h-7 w-7 items-center justify-center rounded-full text-[12px] text-[#7B4FA8]"
+            style={{ background: "rgba(201,168,232,0.18)" }}
+          >
+            ✏️
+          </button>
         )}
       </div>
 

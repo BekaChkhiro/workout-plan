@@ -436,6 +436,30 @@ export async function getFourWeekPlan(userId: string, date: string): Promise<Fou
   };
 }
 
+export async function updateWorkout(
+  userId: string,
+  workoutId: string,
+  patch: Partial<
+    Pick<
+      Workout,
+      | "type"
+      | "title"
+      | "focus"
+      | "durationMin"
+      | "intensity"
+      | "timeStart"
+      | "timeEnd"
+      | "videoUrl"
+      | "description"
+    >
+  >,
+): Promise<void> {
+  await db
+    .update(workouts)
+    .set(patch)
+    .where(and(eq(workouts.id, workoutId), eq(workouts.userId, userId)));
+}
+
 export async function logMealComplete(userId: string, mealId: string, date: string): Promise<void> {
   await db
     .insert(mealLogs)
