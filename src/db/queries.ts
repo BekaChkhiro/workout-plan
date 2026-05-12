@@ -533,6 +533,16 @@ export async function getWeightHistory(
   return rows.map((r) => ({ date: r.date, kg: Number(r.kg) }));
 }
 
+export async function getTargetWeightKg(userId: string): Promise<number | null> {
+  const rows = await db
+    .select({ targetWeightKg: userSettings.targetWeightKg })
+    .from(userSettings)
+    .where(eq(userSettings.userId, userId))
+    .limit(1);
+  const val = rows[0]?.targetWeightKg;
+  return val != null ? Number(val) : null;
+}
+
 export async function updateMeal(
   userId: string,
   mealId: string,

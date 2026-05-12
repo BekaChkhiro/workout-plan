@@ -1,6 +1,6 @@
 import { StatsTab } from "@/components/progress/StatsTab";
 import { WeightTab } from "@/components/progress/WeightTab";
-import { getAdherenceStats, getWeightHistory } from "@/db/queries";
+import { getAdherenceStats, getTargetWeightKg, getWeightHistory } from "@/db/queries";
 import { getOwnerUser } from "@/lib/auth";
 import { getTodayInTimeZone } from "@/lib/date";
 
@@ -26,11 +26,12 @@ export default async function ProgressPage({
 
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const from = thirtyDaysAgo.toISOString().slice(0, 10);
+  const statsFrom = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const [weightEntries, stats] = await Promise.all([
-    activeTab === "weight" ? getWeightHistory(owner.id, { from }) : Promise.resolve([]),
-    activeTab === "stats" ? getAdherenceStats(owner.id, from, today) : Promise.resolve(null),
+  const [weightEntries, targetWeightKg, stats] = await Promise.all([
+    activeTab === "weight" ? getWeightHistory(owner.id) : Promise.resolve([]),
+    activeTab === "weight" ? getTargetWeightKg(owner.id) : Promise.resolve(null),
+    activeTab === "stats" ? getAdherenceStats(owner.id, statsFrom, today) : Promise.resolve(null),
   ]);
 
   return (
@@ -73,7 +74,9 @@ export default async function ProgressPage({
       <ProgressTabBar activeTab={activeTab} />
 
       <div className="relative z-1 flex flex-1 flex-col pt-4">
-        {activeTab === "weight" && <WeightTab entries={weightEntries} today={today} />}
+        {activeTab === "weight" && (
+          <WeightTab entries={weightEntries} today={today} targetKg={targetWeightKg} />
+        )}
         {activeTab === "measurements" && <MeasurementsPlaceholder />}
         {activeTab === "photos" && <PhotosPlaceholder />}
         {activeTab === "stats" && stats && <StatsTab stats={stats} />}
