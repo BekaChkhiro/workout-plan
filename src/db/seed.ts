@@ -2,7 +2,7 @@ import { config } from "dotenv";
 
 config({ path: ".env.local" });
 
-async function main() {
+export async function seedDefaultMeals(): Promise<number> {
   const { db } = await import("./index");
   const { defaultMealIngredients, defaultMeals, defaultMealSwaps } = await import("./schema");
   const { defaultMealsSeed } = await import("./seed/default-meals");
@@ -51,10 +51,20 @@ async function main() {
     }
   }
 
-  console.log(`Seeded ${defaultMealsSeed.length} default meals.`);
+  return defaultMealsSeed.length;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const invokedAsScript =
+  typeof process.argv[1] === "string" &&
+  import.meta.url === `file://${process.argv[1].replace(/\\/g, "/")}`;
+
+if (invokedAsScript) {
+  seedDefaultMeals()
+    .then((count) => {
+      console.log(`Seeded ${count} default meals.`);
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}

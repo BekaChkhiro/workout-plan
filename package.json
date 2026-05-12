@@ -12,6 +12,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:db": "vitest run --config vitest.config.db.ts",
     "test:e2e": "playwright test",
     "prepare": "husky",
     "db:generate": "drizzle-kit generate",
