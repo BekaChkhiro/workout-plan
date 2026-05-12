@@ -7,7 +7,14 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   prettier,
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "week-plan/**"]),
+  globalIgnores([
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+    "week-plan/**",
+    "public/sw.js",
+  ]),
   {
     rules: {
       "@typescript-eslint/no-unused-vars": [

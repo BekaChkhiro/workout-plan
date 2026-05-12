@@ -184,6 +184,48 @@ const sw = new Serwist({
   },
 });
 
+// Show incoming push as a native notification
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  type RawPayload = {
+    title?: string;
+    body?: string;
+    icon?: string;
+    badge?: string;
+    url?: string;
+    tag?: string;
+  };
+  let payload: RawPayload = {};
+  try {
+    payload = event.data.json() as RawPayload;
+  } catch {
+    payload = { title: "Workout Plan", body: event.data.text() };
+  }
+  event.waitUntil(
+    self.registration.showNotification(payload.title ?? "Workout Plan", {
+      body: payload.body,
+      icon: payload.icon ?? "/icons/pwa-icon-192.png",
+      tag: payload.tag,
+      data: { url: payload.url ?? "/" },
+    }),
+  );
+});
+
+// Navigate to the deep-link URL embedded in the notification
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url: string = (event.notification.data as { url?: string } | null)?.url ?? "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windowClients) => {
+      const existing = windowClients[0];
+      if (existing && "navigate" in existing) {
+        return (existing as WindowClient).navigate(url).then((wc) => wc?.focus());
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});
+
 sw.addEventListeners();
 
 type PushData = {

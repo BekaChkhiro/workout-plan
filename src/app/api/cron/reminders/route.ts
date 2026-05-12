@@ -3,9 +3,27 @@ import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
 
 import { db } from "@/db";
-import { meals, notificationLog, userSettings, users, workouts } from "@/db/schema";
+import {
+  meals,
+  notificationLog,
+  userSettings,
+  users,
+  waterLogs,
+  weightLogs,
+  workouts,
+} from "@/db/schema";
 import { getCurrentMinutesInTimeZone, getTodayInTimeZone, parseTimeToMinutes } from "@/lib/date";
+import {
+  buildMealNotification,
+  buildWaterNotification,
+  buildWeightNotification,
+  buildWorkoutNotification,
+} from "@/lib/notification-content";
 import { sendPushToUser } from "@/lib/push";
+
+// Hours (user-local) at which water reminders fire
+const WATER_REMINDER_HOURS = [8, 10, 12, 14, 16, 18, 20];
+const WEIGHT_REMINDER_HOUR = 8;
 
 // Compare two strings in constant time using HMAC digests (equal-length outputs).
 function isAuthorized(token: string, secret: string): boolean {
@@ -77,8 +95,6 @@ export async function POST(req: Request) {
   let waterSent = 0;
   let weightSent = 0;
 
-  const WATER_HOURS = [9, 11, 13, 15, 17, 19];
-
   const allUsers = await db
     .select({
       id: users.id,
@@ -87,6 +103,7 @@ export async function POST(req: Request) {
       notifWorkouts: userSettings.notifWorkouts,
       notifWater: userSettings.notifWater,
       notifWeight: userSettings.notifWeight,
+      waterTargetL: userSettings.waterTargetL,
       planStartDate: userSettings.planStartDate,
       currentWeekOverride: userSettings.currentWeekOverride,
     })
@@ -128,12 +145,7 @@ export async function POST(req: Request) {
             .limit(1);
           if (existing) continue;
 
-          await sendPushToUser(user.id, {
-            title: "🍳 " + meal.name,
-            body: meal.summary + (meal.calories ? ` (${meal.calories} კკალ)` : ""),
-            tag: `meal-${meal.id}`,
-            url: "/",
-          });
+          await sendPushToUser(user.id, buildMealNotification(meal));
 
           await db.insert(notificationLog).values({
             userId: user.id,
@@ -180,18 +192,7 @@ export async function POST(req: Request) {
             .limit(1);
           if (existing) continue;
 
-          await sendPushToUser(user.id, {
-            title: "💪 " + workout.title,
-            body: [
-              workout.timeStart,
-              workout.durationMin ? `${workout.durationMin} წთ` : null,
-              workout.focus,
-            ]
-              .filter(Boolean)
-              .join(" · "),
-            tag: `workout-${workout.id}`,
-            url: "/",
-          });
+          await sendPushToUser(user.id, buildWorkoutNotification(workout));
 
           await db.insert(notificationLog).values({
             userId: user.id,
@@ -204,12 +205,22 @@ export async function POST(req: Request) {
       }
 
       if (user.notifWater) {
-        for (const hour of WATER_HOURS) {
-          const timeStr = `${String(hour).padStart(2, "0")}:00`;
-          const waterMinutes = hour * 60;
-          if (waterMinutes < nowMinutes || waterMinutes >= windowEnd) continue;
+        const targetGlasses = Math.round(parseFloat(user.waterTargetL) / 0.25);
 
-          const targetAt = localTimeAsUtc(todayStr, timeStr, tz);
+        for (const hour of WATER_REMINDER_HOURS) {
+          const reminderMinutes = hour * 60;
+          if (reminderMinutes < nowMinutes || reminderMinutes >= windowEnd) continue;
+
+          const [waterLog] = await db
+            .select({ glassesCount: waterLogs.glassesCount })
+            .from(waterLogs)
+            .where(and(eq(waterLogs.userId, user.id), eq(waterLogs.date, todayStr)))
+            .limit(1);
+
+          const glassesCount = waterLog?.glassesCount ?? 0;
+          if (glassesCount >= targetGlasses) continue;
+
+          const targetAt = localTimeAsUtc(todayStr, `${hour.toString().padStart(2, "0")}:00`, tz);
 
           const [existing] = await db
             .select({ id: notificationLog.id })
@@ -224,12 +235,7 @@ export async function POST(req: Request) {
             .limit(1);
           if (existing) continue;
 
-          await sendPushToUser(user.id, {
-            title: "💧 წყლის დროა!",
-            body: "სვი ერთი ჭიქა წყალი",
-            tag: `water-${todayStr}-${hour}`,
-            url: "/",
-          });
+          await sendPushToUser(user.id, buildWaterNotification(glassesCount, targetGlasses));
 
           await db.insert(notificationLog).values({
             userId: user.id,
@@ -242,37 +248,39 @@ export async function POST(req: Request) {
       }
 
       if (user.notifWeight) {
-        const weightMinutes = 8 * 60;
-        if (weightMinutes >= nowMinutes && weightMinutes < windowEnd) {
-          const targetAt = localTimeAsUtc(todayStr, "08:00", tz);
-
-          const [existing] = await db
-            .select({ id: notificationLog.id })
-            .from(notificationLog)
-            .where(
-              and(
-                eq(notificationLog.userId, user.id),
-                eq(notificationLog.kind, "weight"),
-                eq(notificationLog.targetAt, targetAt),
-              ),
-            )
+        const reminderMinutes = WEIGHT_REMINDER_HOUR * 60;
+        if (reminderMinutes >= nowMinutes && reminderMinutes < windowEnd) {
+          const [alreadyLogged] = await db
+            .select({ date: weightLogs.date })
+            .from(weightLogs)
+            .where(and(eq(weightLogs.userId, user.id), eq(weightLogs.date, todayStr)))
             .limit(1);
 
-          if (!existing) {
-            await sendPushToUser(user.id, {
-              title: "⚖️ წონის ჩაწერა",
-              body: "დილის წონა ჩაიწერე",
-              tag: `weight-${todayStr}`,
-              url: "/",
-            });
+          if (!alreadyLogged) {
+            const targetAt = localTimeAsUtc(todayStr, "08:00", tz);
 
-            await db.insert(notificationLog).values({
-              userId: user.id,
-              kind: "weight",
-              targetAt,
-            });
+            const [existing] = await db
+              .select({ id: notificationLog.id })
+              .from(notificationLog)
+              .where(
+                and(
+                  eq(notificationLog.userId, user.id),
+                  eq(notificationLog.kind, "weight"),
+                  eq(notificationLog.targetAt, targetAt),
+                ),
+              )
+              .limit(1);
+            if (!existing) {
+              await sendPushToUser(user.id, buildWeightNotification());
 
-            weightSent++;
+              await db.insert(notificationLog).values({
+                userId: user.id,
+                kind: "weight",
+                targetAt,
+              });
+
+              weightSent++;
+            }
           }
         }
       }
