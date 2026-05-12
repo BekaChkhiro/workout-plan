@@ -1,7 +1,12 @@
 import { MeasurementsTab } from "@/components/progress/MeasurementsTab";
 import { StatsTab } from "@/components/progress/StatsTab";
 import { WeightTab } from "@/components/progress/WeightTab";
-import { getAdherenceStats, getMeasurementHistory, getWeightHistory } from "@/db/queries";
+import {
+  getAdherenceStats,
+  getMeasurementHistory,
+  getTargetWeightKg,
+  getWeightHistory,
+} from "@/db/queries";
 import { getOwnerUser } from "@/lib/auth";
 import { getTodayInTimeZone } from "@/lib/date";
 
@@ -27,12 +32,15 @@ export default async function ProgressPage({
 
   const thirtyDaysAgo = new Date(today);
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const from = thirtyDaysAgo.toISOString().slice(0, 10);
+  const statsFrom = thirtyDaysAgo.toISOString().slice(0, 10);
 
-  const [weightEntries, measurementEntries, stats] = await Promise.all([
-    activeTab === "weight" ? getWeightHistory(owner.id, { from }) : Promise.resolve([]),
-    activeTab === "measurements" ? getMeasurementHistory(owner.id, { from }) : Promise.resolve([]),
-    activeTab === "stats" ? getAdherenceStats(owner.id, from, today) : Promise.resolve(null),
+  const [weightEntries, measurementEntries, targetWeightKg, stats] = await Promise.all([
+    activeTab === "weight" ? getWeightHistory(owner.id) : Promise.resolve([]),
+    activeTab === "measurements"
+      ? getMeasurementHistory(owner.id, { from: statsFrom })
+      : Promise.resolve([]),
+    activeTab === "weight" ? getTargetWeightKg(owner.id) : Promise.resolve(null),
+    activeTab === "stats" ? getAdherenceStats(owner.id, statsFrom, today) : Promise.resolve(null),
   ]);
 
   return (
@@ -75,7 +83,9 @@ export default async function ProgressPage({
       <ProgressTabBar activeTab={activeTab} />
 
       <div className="relative z-1 flex flex-1 flex-col pt-4">
-        {activeTab === "weight" && <WeightTab entries={weightEntries} today={today} />}
+        {activeTab === "weight" && (
+          <WeightTab entries={weightEntries} today={today} targetKg={targetWeightKg} />
+        )}
         {activeTab === "measurements" && (
           <MeasurementsTab entries={measurementEntries} today={today} />
         )}
