@@ -1,3 +1,8 @@
+import { WeightTab } from "@/components/progress/WeightTab";
+import { getWeightHistory } from "@/db/queries";
+import { getOwnerUser } from "@/lib/auth";
+import { getTodayInTimeZone } from "@/lib/date";
+
 import { ProgressTabBar } from "./_components/ProgressTabBar";
 
 const VALID_TABS = ["weight", "measurements", "photos", "stats"] as const;
@@ -14,6 +19,16 @@ export default async function ProgressPage({
   const activeTab: Tab = (VALID_TABS as readonly string[]).includes(tab ?? "")
     ? (tab as Tab)
     : "weight";
+
+  const owner = await getOwnerUser();
+  const today = getTodayInTimeZone(owner.timezone);
+
+  const thirtyDaysAgo = new Date(today);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const from = thirtyDaysAgo.toISOString().slice(0, 10);
+
+  const weightEntries =
+    activeTab === "weight" ? await getWeightHistory(owner.id, { from }) : [];
 
   return (
     <>
@@ -54,8 +69,8 @@ export default async function ProgressPage({
 
       <ProgressTabBar activeTab={activeTab} />
 
-      <div className="relative z-1 flex flex-1 flex-col px-[18px] pt-4">
-        {activeTab === "weight" && <WeightPlaceholder />}
+      <div className="relative z-1 flex flex-1 flex-col pt-4">
+        {activeTab === "weight" && <WeightTab entries={weightEntries} today={today} />}
         {activeTab === "measurements" && <MeasurementsPlaceholder />}
         {activeTab === "photos" && <PhotosPlaceholder />}
         {activeTab === "stats" && <StatsPlaceholder />}
@@ -74,27 +89,16 @@ function PlaceholderCard({
   subtitle: string;
 }) {
   return (
-    <div
-      className="flex flex-col items-center gap-3 rounded-[var(--radius-lg)] px-6 py-10 text-center"
-      style={{
-        background: "#FFFFFF",
-        boxShadow: "var(--shadow-md)",
-      }}
-    >
-      <span className="text-5xl">{emoji}</span>
-      <p className="text-h2 text-ink font-bold">{title}</p>
-      <p className="text-body text-ink-soft">{subtitle}</p>
+    <div className="px-[18px]">
+      <div
+        className="flex flex-col items-center gap-3 rounded-[var(--radius-lg)] px-6 py-10 text-center"
+        style={{ background: "#FFFFFF", boxShadow: "var(--shadow-md)" }}
+      >
+        <span className="text-5xl">{emoji}</span>
+        <p className="text-h2 text-ink font-bold">{title}</p>
+        <p className="text-body text-ink-soft">{subtitle}</p>
+      </div>
     </div>
-  );
-}
-
-function WeightPlaceholder() {
-  return (
-    <PlaceholderCard
-      emoji="⚖️"
-      title="წონის ჩანაწერები"
-      subtitle="T5.2-ში — წონის ჩაწერა და გრაფიკი"
-    />
   );
 }
 
